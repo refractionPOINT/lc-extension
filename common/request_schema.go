@@ -8,10 +8,10 @@ type RequestSchemas = map[RequestAction]RequestSchema
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-	IsUserFacing     bool                        `json:"is_user_facing"`
-	ShortDescription string                      `json:"short_description"`
-	LongDescription  string                      `json:"long_description"`
-	Parameters       RequestParameterDefinitions `json:"parameters"`
+	IsUserFacing     bool                        `json:"is_user_facing"`    // Is this Action expected to be performed by a human, or is it for automation.
+	ShortDescription string                      `json:"short_description"` // Short description of what this Action does.
+	LongDescription  string                      `json:"long_description"`  // Longer version of the Short Description.
+	Parameters       RequestParameterDefinitions `json:"parameters"`        // List of Parameter Names and their definition.
 }
 
 // A Parameter Name.
@@ -22,12 +22,12 @@ type RequestParameterDefinitions = map[RequestParameterName]RequestParameterDefi
 
 // The Definition of a Parameter.
 type RequestParameterDefinition struct {
-	IsRequired   bool              `json:"is_required"`
-	IsList       bool              `json:"is_list,omitempty"`
-	DataType     ParameterDataType `json:"data_type"`
-	DefaultValue string            `json:"default_value,omitempty"`
+	IsRequired   bool              `json:"is_required"`             // Is this Parameter required for this Action?
+	IsList       bool              `json:"is_list,omitempty"`       // Is this Parameter for a single item, or a list of items?
+	DataType     ParameterDataType `json:"data_type"`               // The type of values expected.
+	DefaultValue string            `json:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
 
-	DisplayIndex int `json:"display_index,omitempty"`
+	DisplayIndex int `json:"display_index,omitempty"` // The zero-based index ordering the display of the Parameters in a UI.
 }
 
 // Type of data found in a Parameter.
