@@ -51,6 +51,8 @@ var ParameterDataTypes = struct {
 
 	JSON string
 	YAML string
+
+	Object string
 }{
 	String:  "string",
 	Integer: "integer",
@@ -68,6 +70,8 @@ var ParameterDataTypes = struct {
 
 	JSON: "json",
 	YAML: "yaml",
+
+	Object: "object",
 }
 
 // Examples of full schemas for something like a Yara Scanning Extension:
