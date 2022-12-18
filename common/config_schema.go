@@ -41,3 +41,11 @@ type ConfigElement struct {
 // 		}
 // 	}
 // }
+//
+// Which could look like this actual config.
+// {
+// 	"enable_new_rules": true,
+// 	"suppression": {
+// 		"suppression_time": "3h",
+// 	}
+// }
