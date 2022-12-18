@@ -49,6 +49,9 @@ var ParameterDataTypes = struct {
 	Duration string
 	Time     string
 
+	URL    string
+	Domain string
+
 	JSON string
 	YAML string
 
@@ -67,6 +70,9 @@ var ParameterDataTypes = struct {
 
 	Duration: "duration",
 	Time:     "time",
+
+	URL:    "url",
+	Domain: "domain",
 
 	JSON: "json",
 	YAML: "yaml",

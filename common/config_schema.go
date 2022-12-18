@@ -8,6 +8,7 @@ type ConfigKey = string
 type ConfigObjectSchema = map[ConfigKey]ConfigElement
 
 type ConfigElement struct {
+	Description  string            `json:"description"`
 	IsRequired   bool              `json:"is_required"`
 	DataType     ParameterDataType `json:"data_type"`
 	DisplayIndex int               `json:"display_index,omitempty"`
@@ -16,3 +17,27 @@ type ConfigElement struct {
 	// will contain the definition of this Object.
 	Object ConfigObjectSchema `json:"object,omitempty"`
 }
+
+// Example of a config for something like a Sigma Extension.
+// {
+// 	"enable_new_rules": {
+// 		"description": "if set to true, will automatically enable new Sigma rules",
+// 		"is_required": false,
+// 		"data_type": "bool",
+// 		"display_index": 0
+// 	},
+// 	"suppression": {
+// 		"description": "suppression configurations",
+// 		"is_requried": false,
+// 		"data_type": "object",
+// 		"display_index": 1,
+// 		"object": {
+// 			"suppression_time": {
+// 				"description": "if set, will suppress detections per sensor per rule for this duration",
+// 				"is_required": false,
+// 				"data_type": "duration",
+// 				"display_index": 0
+// 			}
+// 		}
+// 	}
+// }
