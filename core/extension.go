@@ -132,11 +132,11 @@ func (e *Extension) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if response.Error == "" {
-		respond(w, http.StatusOK, &response)
-	} else {
+	if response.Error != "" {
 		respond(w, http.StatusInternalServerError, &response)
+		return
 	}
+	respond(w, http.StatusOK, &response)
 }
 
 func verifyOrigin(data []byte, sig string, secretKey []byte) bool {
