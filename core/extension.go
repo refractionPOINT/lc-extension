@@ -22,6 +22,9 @@ type Extension struct {
 	ExtensionName string
 	SecretKey     string
 	Callbacks     ExtensionCallbacks
+
+	ConfigSchema  common.ConfigObjectSchema
+	RequestSchema common.RequestSchemas
 }
 
 type ExtensionResponse struct {
@@ -77,7 +80,10 @@ func (e *Extension) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if message.HeartBeat != nil {
-		respond(w, http.StatusOK, Dict{})
+		respond(w, http.StatusOK, &common.HeartBeatResponse{
+			ConfigSchema:  e.ConfigSchema,
+			RequestSchema: e.RequestSchema,
+		})
 		return
 	}
 
