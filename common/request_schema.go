@@ -11,6 +11,7 @@ type RequestSchema struct {
 	IsUserFacing     bool                        `json:"is_user_facing"`    // Is this Action expected to be performed by a human, or is it for automation.
 	ShortDescription string                      `json:"short_description"` // Short description of what this Action does.
 	LongDescription  string                      `json:"long_description"`  // Longer version of the Short Description.
+	IsImpersonated   bool                        `json:"is_impersonated"`   // If true, this action requires a JWT token from a user that it will use to impersonate.
 	Parameters       RequestParameterDefinitions `json:"parameters"`        // List of Parameter Names and their definition.
 }
 
