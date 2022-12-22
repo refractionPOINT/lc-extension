@@ -80,10 +80,7 @@ func (e *Extension) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if message.HeartBeat != nil {
-		respond(w, http.StatusOK, &common.HeartBeatResponse{
-			ConfigSchema:  e.ConfigSchema,
-			RequestSchema: e.RequestSchema,
-		})
+		respond(w, http.StatusOK, &common.HeartBeatResponse{})
 		return
 	}
 
