@@ -36,11 +36,10 @@ type EventMessage struct {
 }
 
 type Response struct {
-	Error             string          `json:"error"`
-	Version           uint64          `json:"version"`
-	Data              interface{}     `json:"data,omitempty"`
-	SensorStateChange interface{}     `json:"ssc,omitempty"` // For internal use only.
-	BillingRecords    []BillingRecord `json:"billing,omitempty"`
+	Error             string      `json:"error"`
+	Version           uint64      `json:"version"`
+	Data              interface{} `json:"data,omitempty"`
+	SensorStateChange interface{} `json:"ssc,omitempty"` // For internal use only.
 }
 
 var EventTypes = struct {
@@ -49,9 +48,4 @@ var EventTypes = struct {
 }{
 	Subscribe:   "subscribe",
 	Unsubscribe: "unsubscribe",
-}
-
-type BillingRecord struct {
-	SKU    string `json:"sku"`
-	Metric uint64 `json:"metric"`
 }
