@@ -14,10 +14,7 @@ type Message struct {
 }
 
 type HeartBeatMessage struct{}
-type HeartBeatResponse struct {
-	ConfigSchema  ConfigObjectSchema `json:"config_schema"`
-	RequestSchema RequestSchemas     `json:"request_schemas"`
-}
+type HeartBeatResponse struct{}
 
 type OrgAccessData struct {
 	OID string `json:"oid"`
