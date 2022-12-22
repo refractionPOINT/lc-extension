@@ -11,11 +11,15 @@ type ConfigElement struct {
 	Description  string            `json:"description"`
 	IsRequired   bool              `json:"is_required"`
 	DataType     ParameterDataType `json:"data_type"`
+	IsList       bool              `json:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
 	DisplayIndex int               `json:"display_index,omitempty"`
 
 	// If this element is an Object, this field
 	// will contain the definition of this Object.
 	Object ConfigObjectSchema `json:"object,omitempty"`
+
+	// This Element is populated when IsList is True.
+	Elements []interface{} `json:"elements,omitempty"`
 }
 
 // Example of a config for something like a Sigma Extension.
