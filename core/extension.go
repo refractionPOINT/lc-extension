@@ -51,7 +51,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	ctx := r.Context()
-	signature := r.Header.Get("LC-SIGNATURE")
+	signature := r.Header.Get("lc-ext-sig")
 	if signature == "" {
 		respond(w, http.StatusOK, nil)
 		return
@@ -103,7 +103,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if message.Request != nil {
-		org, err := e.generateSDK(message.Event.Org)
+		org, err := e.generateSDK(message.Request.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
 			respond(w, http.StatusInternalServerError, &response)
