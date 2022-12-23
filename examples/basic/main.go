@@ -14,41 +14,41 @@ type BasicExtension struct {
 	core.Extension
 }
 
-var extension *BasicExtension
+var Extension *BasicExtension
 
 // Boilerplate Code
 // Serves the extension as a Cloud Function.
 // ============================================================================
 func init() {
-	extension = &BasicExtension{
+	Extension = &BasicExtension{
 		core.Extension{
 			ExtensionName: "basic-extension",
 			SecretKey:     "1234",
 		},
 	}
-	extension.Callbacks = core.ExtensionCallbacks{
+	Extension.Callbacks = core.ExtensionCallbacks{
 		OnSubscribe: func(ctx context.Context, o *limacharlie.Organization) common.Response {
-			extension.LCLoggerZerolog.Info(fmt.Sprintf("subscribe to %s", o.GetOID()))
+			Extension.LCLoggerZerolog.Info(fmt.Sprintf("subscribe to %s", o.GetOID()))
 			return common.Response{}
 		},
 		OnUnsubscribe: func(ctx context.Context, o *limacharlie.Organization) common.Response {
-			extension.LCLoggerZerolog.Info(fmt.Sprintf("unsubscribe from %s", o.GetOID()))
+			Extension.LCLoggerZerolog.Info(fmt.Sprintf("unsubscribe from %s", o.GetOID()))
 			return common.Response{}
 		},
 		RequestHandlers: map[string]core.RequestCallback{
 			"ping": {
 				RequestStruct: &PingRequest{},
-				Callback:      extension.OnPing,
+				Callback:      Extension.OnPing,
 			},
 		},
 	}
-	if err := extension.Init(); err != nil {
+	if err := Extension.Init(); err != nil {
 		panic(err)
 	}
 }
 
 func Process(w http.ResponseWriter, r *http.Request) {
-	extension.HandleRequest(w, r)
+	Extension.ServeHTTP(w, r)
 }
 
 // Actual Extension Implementation

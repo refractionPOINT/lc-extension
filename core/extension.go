@@ -47,7 +47,7 @@ func (e *Extension) Init() error {
 	return nil
 }
 
-func (e *Extension) HandleRequest(w http.ResponseWriter, r *http.Request) {
+func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	ctx := r.Context()
