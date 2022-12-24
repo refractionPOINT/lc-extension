@@ -26,9 +26,9 @@ type RequestParameterDefinition struct {
 	IsRequired   bool              `json:"is_required"`             // Is this Parameter required for this Action?
 	IsList       bool              `json:"is_list,omitempty"`       // Is this Parameter for a single item, or a list of items?
 	DataType     ParameterDataType `json:"data_type"`               // The type of values expected.
-	DefaultValue string            `json:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
-
-	DisplayIndex int `json:"display_index,omitempty"` // The zero-based index ordering the display of the Parameters in a UI.
+	DefaultValue interface{}       `json:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
+	EnumValues   []interface{}     `json:"enum_values,omitempty"`   // If the type is enum, these are the possible values.
+	DisplayIndex int               `json:"display_index,omitempty"` // The zero-based index ordering the display of the Parameters in a UI.
 }
 
 // Type of data found in a Parameter.
@@ -69,8 +69,8 @@ var ParameterDataTypes = struct {
 	Architecture:   "architecture",
 	SensorSelector: "sensor_selector",
 
-	Duration: "duration",
-	Time:     "time",
+	Duration: "duration", // milliseconds
+	Time:     "time",     // milliseconds epoch
 
 	URL:    "url",
 	Domain: "domain",
