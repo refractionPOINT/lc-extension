@@ -34,9 +34,10 @@ type ExtensionResponse struct {
 }
 
 type ExtensionCallbacks struct {
-	OnSubscribe     func(context.Context, *limacharlie.Organization) common.Response
-	OnUnsubscribe   func(context.Context, *limacharlie.Organization) common.Response
-	RequestHandlers map[common.ActionName]RequestCallback
+	OnSubscribe     func(context.Context, *limacharlie.Organization) common.Response                         // Required
+	OnUnsubscribe   func(context.Context, *limacharlie.Organization) common.Response                         // Required
+	ValidateConfig  func(context.Context, *limacharlie.Organization, map[string]interface{}) common.Response // Optional
+	RequestHandlers map[common.ActionName]RequestCallback                                                    // Optional
 }
 
 type RequestCallback struct {
@@ -136,6 +137,16 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response = rcb.Callback(ctx, org, tmpData)
+	} else if message.ConfigValidation != nil {
+		org, err := e.generateSDK(message.ConfigValidation.Org)
+		if err != nil {
+			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
+			respond(w, http.StatusInternalServerError, &response)
+			return
+		}
+		if e.Callbacks.ValidateConfig != nil {
+			response = e.Callbacks.ValidateConfig(ctx, org, message.ConfigValidation.Config)
+		}
 	} else {
 		response.Error = "no data in request"
 		respond(w, http.StatusBadRequest, &response)
@@ -146,6 +157,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(w, http.StatusInternalServerError, &response)
 		return
 	}
+	response.Version = PROTOCOL_VERSION
 	respond(w, http.StatusOK, &response)
 }
 
