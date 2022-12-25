@@ -8,13 +8,21 @@ type Message struct {
 	IdempotencyKey string `json:"idempotency_key"`
 
 	// One of the following will be specified.
-	HeartBeat *HeartBeatMessage `json:"heartbeat,omitempty"`
-	Request   *RequestMessage   `json:"request,omitempty"`
-	Event     *EventMessage     `json:"event,omitempty"`
+	HeartBeat        *HeartBeatMessage        `json:"heartbeat,omitempty"`
+	ConfigValidation *ConfigValidationMessage `json:"conf_validation,omitempty"`
+	Request          *RequestMessage          `json:"request,omitempty"`
+	Event            *EventMessage            `json:"event,omitempty"`
 }
 
 type HeartBeatMessage struct{}
 type HeartBeatResponse struct{}
+
+type ConfigValidationMessage struct {
+	Org    OrgAccessData          `json:"org"`
+	Config map[string]interface{} `json:"conf"`
+}
+
+type ConfigValidationResponse struct{}
 
 type OrgAccessData struct {
 	OID string `json:"oid"`
