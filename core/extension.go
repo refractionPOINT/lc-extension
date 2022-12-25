@@ -1,6 +1,7 @@
 package core
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -59,7 +60,19 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	response := common.Response{Version: PROTOCOL_VERSION}
 
-	requestData, err := io.ReadAll(r.Body)
+	var body io.ReadCloser
+	var err error
+	body = r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		if body, err = gzip.NewReader(r.Body); err != nil {
+			response.Error = err.Error()
+			respond(w, http.StatusBadRequest, &response)
+			return
+		}
+		defer body.Close()
+	}
+
+	requestData, err := io.ReadAll(body)
 	if err != nil {
 		response.Error = fmt.Sprintf("failed reading body: %v", err)
 		respond(w, http.StatusNoContent, &response)
