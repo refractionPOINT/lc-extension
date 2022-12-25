@@ -35,6 +35,10 @@ func init() {
 			Extension.LCLoggerZerolog.Info(fmt.Sprintf("unsubscribe from %s", o.GetOID()))
 			return common.Response{}
 		},
+		ValidateConfig: func(ctx context.Context, o *limacharlie.Organization, config map[string]interface{}) common.Response {
+			Extension.LCLoggerZerolog.Info(fmt.Sprintf("validate config from %s", o.GetOID()))
+			return common.Response{}
+		},
 		RequestHandlers: map[string]core.RequestCallback{
 			"ping": {
 				RequestStruct: &PingRequest{},
