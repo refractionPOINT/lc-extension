@@ -34,16 +34,17 @@ type ExtensionResponse struct {
 }
 
 type ExtensionCallbacks struct {
-	OnSubscribe     func(context.Context, *limacharlie.Organization) common.Response                         // Required
-	OnUnsubscribe   func(context.Context, *limacharlie.Organization) common.Response                         // Required
 	ValidateConfig  func(context.Context, *limacharlie.Organization, map[string]interface{}) common.Response // Optional
 	RequestHandlers map[common.ActionName]RequestCallback                                                    // Optional
+	EventHandlers   map[common.EventName]EventCallback
 }
 
 type RequestCallback struct {
 	RequestStruct interface{}
 	Callback      func(context.Context, *limacharlie.Organization, interface{}) common.Response
 }
+
+type EventCallback = func(context.Context, *limacharlie.Organization, map[string]interface{}) common.Response
 
 func (e *Extension) Init() error {
 	return nil
@@ -106,16 +107,13 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		switch message.Event.EventName {
-		case common.EventTypes.Subscribe:
-			response = e.Callbacks.OnSubscribe(ctx, org)
-		case common.EventTypes.Unsubscribe:
-			response = e.Callbacks.OnUnsubscribe(ctx, org)
-		default:
+		handler, ok := e.Callbacks.EventHandlers[message.Event.EventName]
+		if !ok {
 			response.Error = fmt.Sprintf("unknown event: %s", message.Event.EventName)
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
+		response = handler(ctx, org, message.Event.Data)
 	} else if message.Request != nil {
 		org, err := e.generateSDK(message.Request.Org)
 		if err != nil {

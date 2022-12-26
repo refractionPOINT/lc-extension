@@ -38,22 +38,44 @@ type RequestMessage struct {
 }
 
 type EventMessage struct {
-	Org       OrgAccessData `json:"org"`
-	EventName string        `json:"event_name"`
-	Data      interface{}   `json:"data"`
+	Org       OrgAccessData          `json:"org"`
+	EventName EventName              `json:"event_name"`
+	Data      map[string]interface{} `json:"data"`
 }
 
 type Response struct {
-	Error             string      `json:"error"`
-	Version           uint64      `json:"version"`
-	Data              interface{} `json:"data,omitempty"`
-	SensorStateChange interface{} `json:"ssc,omitempty"` // For internal use only.
+	Error             string        `json:"error"`
+	Version           uint64        `json:"version"`
+	Data              interface{}   `json:"data,omitempty"`
+	SensorStateChange *SensorUpdate `json:"ssc,omitempty"` // For internal use only.
+}
+
+type EventName = string
+
+// For internal use only.
+type SensorUpdate struct {
+	SID         string                 `json:"sid" msgpack:"sid"`
+	CollectorID string                 `json:"col_id" msgpack:"col_id"`
+	UpdateTS    uint64                 `json:"update_ts" msgpack:"update_ts"`
+	Data        map[string]interface{} `json:"data" msgpack:"data"`
 }
 
 var EventTypes = struct {
-	Subscribe   string
-	Unsubscribe string
+	Subscribe   EventName
+	Unsubscribe EventName
+	Every1Hour  EventName
+	Every3Hour  EventName
+	Every12Hour EventName
+	Every24Hour EventName
+	Every7Day   EventName
+	Every30Day  EventName
 }{
 	Subscribe:   "subscribe",
 	Unsubscribe: "unsubscribe",
+	Every1Hour:  "every_1h",
+	Every3Hour:  "every_3h",
+	Every12Hour: "every_12h",
+	Every24Hour: "every_24h",
+	Every7Day:   "every_7d",
+	Every30Day:  "every_30d",
 }
