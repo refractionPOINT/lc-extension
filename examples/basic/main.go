@@ -27,22 +27,24 @@ func init() {
 		},
 	}
 	Extension.Callbacks = core.ExtensionCallbacks{
-		OnSubscribe: func(ctx context.Context, o *limacharlie.Organization) common.Response {
-			Extension.LCLoggerZerolog.Info(fmt.Sprintf("subscribe to %s", o.GetOID()))
-			return common.Response{}
-		},
-		OnUnsubscribe: func(ctx context.Context, o *limacharlie.Organization) common.Response {
-			Extension.LCLoggerZerolog.Info(fmt.Sprintf("unsubscribe from %s", o.GetOID()))
-			return common.Response{}
-		},
 		ValidateConfig: func(ctx context.Context, o *limacharlie.Organization, config map[string]interface{}) common.Response {
 			Extension.LCLoggerZerolog.Info(fmt.Sprintf("validate config from %s", o.GetOID()))
 			return common.Response{}
 		},
-		RequestHandlers: map[string]core.RequestCallback{
+		RequestHandlers: map[common.ActionName]core.RequestCallback{
 			"ping": {
 				RequestStruct: &PingRequest{},
 				Callback:      Extension.OnPing,
+			},
+		},
+		EventHandlers: map[common.EventName]core.EventCallback{
+			common.EventTypes.Subscribe: func(ctx context.Context, o *limacharlie.Organization, d map[string]interface{}) common.Response {
+				Extension.LCLoggerZerolog.Info(fmt.Sprintf("subscribe to %s", o.GetOID()))
+				return common.Response{}
+			},
+			common.EventTypes.Unsubscribe: func(ctx context.Context, o *limacharlie.Organization, d map[string]interface{}) common.Response {
+				Extension.LCLoggerZerolog.Info(fmt.Sprintf("unsubscribe from %s", o.GetOID()))
+				return common.Response{}
 			},
 		},
 	}
