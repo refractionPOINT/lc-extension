@@ -44,10 +44,18 @@ type EventMessage struct {
 }
 
 type Response struct {
-	Error             string      `json:"error"`
-	Version           uint64      `json:"version"`
-	Data              interface{} `json:"data,omitempty"`
-	SensorStateChange interface{} `json:"ssc,omitempty"` // For internal use only.
+	Error             string        `json:"error"`
+	Version           uint64        `json:"version"`
+	Data              interface{}   `json:"data,omitempty"`
+	SensorStateChange *SensorUpdate `json:"ssc,omitempty"` // For internal use only.
+}
+
+// For internal use only.
+type SensorUpdate struct {
+	SID         string                 `json:"sid" msgpack:"sid"`
+	CollectorID string                 `json:"col_id" msgpack:"col_id"`
+	UpdateTS    uint64                 `json:"update_ts" msgpack:"update_ts"`
+	Data        map[string]interface{} `json:"data" msgpack:"data"`
 }
 
 var EventTypes = struct {
