@@ -1,7 +1,5 @@
 package common
 
-import "github.com/refractionPOINT/go-limacharlie/limacharlie"
-
 type Message struct {
 	// Header always specified.
 	Version        uint64 `json:"version"`
@@ -32,9 +30,15 @@ type OrgAccessData struct {
 type ActionName = string
 
 type RequestMessage struct {
-	Org    OrgAccessData    `json:"org"`
-	Action ActionName       `json:"action"`
-	Data   limacharlie.Dict `json:"data"`
+	Org    OrgAccessData          `json:"org"`
+	Action ActionName             `json:"action"`
+	Data   map[string]interface{} `json:"data"`
+}
+
+type ContinuationRequest struct {
+	InDelaySeconds uint64                 `json:"in_delay_sec"`
+	Action         ActionName             `json:"action"`
+	State          map[string]interface{} `json:"state"`
 }
 
 type EventMessage struct {
@@ -44,10 +48,11 @@ type EventMessage struct {
 }
 
 type Response struct {
-	Error             string        `json:"error"`
-	Version           uint64        `json:"version"`
-	Data              interface{}   `json:"data,omitempty"`
-	SensorStateChange *SensorUpdate `json:"ssc,omitempty"` // For internal use only.
+	Error             string                `json:"error"`
+	Version           uint64                `json:"version"`
+	Data              interface{}           `json:"data,omitempty"`
+	SensorStateChange *SensorUpdate         `json:"ssc,omitempty"` // For internal use only.
+	Continuations     []ContinuationRequest `json:"continuations,omitempty"`
 }
 
 type EventName = string
