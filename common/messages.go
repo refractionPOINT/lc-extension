@@ -30,10 +30,9 @@ type OrgAccessData struct {
 type ActionName = string
 
 type RequestMessage struct {
-	Org           OrgAccessData          `json:"org"`
-	Action        ActionName             `json:"action"`
-	Data          map[string]interface{} `json:"data"`
-	Continuations []ContinuationRequest  `json:"continuations,omitempty"`
+	Org    OrgAccessData          `json:"org"`
+	Action ActionName             `json:"action"`
+	Data   map[string]interface{} `json:"data"`
 }
 
 type ContinuationRequest struct {
@@ -49,10 +48,11 @@ type EventMessage struct {
 }
 
 type Response struct {
-	Error             string        `json:"error"`
-	Version           uint64        `json:"version"`
-	Data              interface{}   `json:"data,omitempty"`
-	SensorStateChange *SensorUpdate `json:"ssc,omitempty"` // For internal use only.
+	Error             string                `json:"error"`
+	Version           uint64                `json:"version"`
+	Data              interface{}           `json:"data,omitempty"`
+	SensorStateChange *SensorUpdate         `json:"ssc,omitempty"` // For internal use only.
+	Continuations     []ContinuationRequest `json:"continuations,omitempty"`
 }
 
 type EventName = string
