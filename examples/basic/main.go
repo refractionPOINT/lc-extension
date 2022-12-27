@@ -27,8 +27,8 @@ func init() {
 		},
 	}
 	Extension.Callbacks = core.ExtensionCallbacks{
-		ValidateConfig: func(ctx context.Context, o *limacharlie.Organization, config map[string]interface{}) common.Response {
-			Extension.LCLoggerZerolog.Info(fmt.Sprintf("validate config from %s", o.GetOID()))
+		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config map[string]interface{}) common.Response {
+			Extension.LCLoggerZerolog.Info(fmt.Sprintf("validate config from %s", org.GetOID()))
 			return common.Response{}
 		},
 		RequestHandlers: map[common.ActionName]core.RequestCallback{
@@ -38,12 +38,12 @@ func init() {
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
-			common.EventTypes.Subscribe: func(ctx context.Context, o *limacharlie.Organization, d map[string]interface{}) common.Response {
-				Extension.LCLoggerZerolog.Info(fmt.Sprintf("subscribe to %s", o.GetOID()))
+			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}) common.Response {
+				Extension.LCLoggerZerolog.Info(fmt.Sprintf("subscribe to %s", org.GetOID()))
 				return common.Response{}
 			},
-			common.EventTypes.Unsubscribe: func(ctx context.Context, o *limacharlie.Organization, d map[string]interface{}) common.Response {
-				Extension.LCLoggerZerolog.Info(fmt.Sprintf("unsubscribe from %s", o.GetOID()))
+			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}) common.Response {
+				Extension.LCLoggerZerolog.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 				return common.Response{}
 			},
 		},
@@ -72,8 +72,8 @@ func (e *BasicExtension) Init() error {
 	return nil
 }
 
-func (e *BasicExtension) OnPing(ctx context.Context, o *limacharlie.Organization, d interface{}) common.Response {
-	request := d.(*PingRequest)
+func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf map[string]interface{}) common.Response {
+	request := data.(*PingRequest)
 
 	return common.Response{
 		Data: request,

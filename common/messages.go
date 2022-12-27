@@ -33,6 +33,7 @@ type RequestMessage struct {
 	Org    OrgAccessData          `json:"org"`
 	Action ActionName             `json:"action"`
 	Data   map[string]interface{} `json:"data"`
+	Config map[string]interface{} `json:"config"`
 }
 
 type ContinuationRequest struct {
@@ -45,6 +46,7 @@ type EventMessage struct {
 	Org       OrgAccessData          `json:"org"`
 	EventName EventName              `json:"event_name"`
 	Data      map[string]interface{} `json:"data"`
+	Config    map[string]interface{} `json:"config"`
 }
 
 type Response struct {
