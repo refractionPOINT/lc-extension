@@ -24,19 +24,26 @@ func init() {
 		core.Extension{
 			ExtensionName: "basic-extension",
 			SecretKey:     "1234",
-			ConfigSchema:  map[string]common.ConfigElement{},
+			ConfigSchema: common.ConfigObjectSchema{
+				Fields:       map[common.ConfigKey]common.ConfigElement{},
+				Requirements: [][]common.ConfigKey{},
+			},
 			RequestSchema: map[string]common.RequestSchema{
 				"ping": {
 					IsUserFacing:     true,
 					ShortDescription: "simple ping request",
 					LongDescription:  "will echo back some value",
 					IsImpersonated:   false,
-					Parameters: map[string]common.RequestParameterDefinition{
-						"some_value": {
-							IsRequired:   true,
-							IsList:       false,
-							DataType:     common.ParameterDataTypes.String,
-							DisplayIndex: 0,
+					ParameterDefinitions: common.RequestParameterDefinitions{
+						Parameters: map[common.RequestParameterName]common.RequestParameterDefinition{
+							"some_value": {
+								IsList:       false,
+								DataType:     common.ParameterDataTypes.String,
+								DisplayIndex: 0,
+							},
+						},
+						Requirements: [][]common.RequestParameterName{
+							{"some_value"},
 						},
 					},
 				},

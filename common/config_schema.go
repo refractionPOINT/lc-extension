@@ -5,11 +5,18 @@ type ConfigKey = string
 
 // This is a config object. It can be a root of an
 // Extension's configs, or it can be a sub object.
-type ConfigObjectSchema = map[ConfigKey]ConfigElement
+type ConfigObjectSchema struct {
+	Fields map[ConfigKey]ConfigElement
+	// All field sets must be satisfied.
+	// Each field is specifies fields where one and only one must be set.
+	Requirements []RequiredFields
+}
+
+// Valid objects require one of the following fields to be specified.
+type RequiredFields = []ConfigKey
 
 type ConfigElement struct {
 	Description  string            `json:"description"`
-	IsRequired   bool              `json:"is_required"`
 	DataType     ParameterDataType `json:"data_type"`
 	IsList       bool              `json:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
 	DisplayIndex int               `json:"display_index,omitempty"`
