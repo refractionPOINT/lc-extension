@@ -19,7 +19,7 @@ type ConfigElement struct {
 	Object ConfigObjectSchema `json:"object,omitempty"`
 
 	// This Element is populated when IsList is True.
-	Elements []interface{} `json:"elements,omitempty"`
+	Elements *ConfigElement `json:"elements,omitempty"`
 }
 
 // Example of a config for something like a Sigma Extension.
