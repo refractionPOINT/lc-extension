@@ -7,7 +7,9 @@ type Message struct {
 
 	// One of the following will be specified.
 	HeartBeat        *HeartBeatMessage        `json:"heartbeat,omitempty"`
+	ErrorReport      *ErrorReportMessage      `json:"error_report,omitempty"`
 	ConfigValidation *ConfigValidationMessage `json:"conf_validation,omitempty"`
+	SchemaRequest    *SchemaRequestMessage    `json:"schema_request,omitempty"`
 	Request          *RequestMessage          `json:"request,omitempty"`
 	Event            *EventMessage            `json:"event,omitempty"`
 }
@@ -15,12 +17,24 @@ type Message struct {
 type HeartBeatMessage struct{}
 type HeartBeatResponse struct{}
 
+type ErrorReportMessage struct {
+	Error string `json:"error"`
+	Oid   string `json:"oid,omitempty"`
+}
+
 type ConfigValidationMessage struct {
 	Org    OrgAccessData          `json:"org"`
 	Config map[string]interface{} `json:"conf"`
 }
 
 type ConfigValidationResponse struct{}
+
+type SchemaRequestMessage struct{}
+type SchemaRequestResponse struct {
+	Config         ConfigObjectSchema `json:"config_schema"`
+	Request        RequestSchemas     `json:"request_schema"`
+	RequiredEvents []EventName        `json:"required_events"`
+}
 
 type OrgAccessData struct {
 	OID string `json:"oid"`
