@@ -47,6 +47,8 @@ var ParameterDataTypes = struct {
 	Architecture   string
 	SensorSelector string
 
+	Tag string
+
 	Duration string
 	Time     string
 
@@ -68,6 +70,8 @@ var ParameterDataTypes = struct {
 	Platform:       "platform",
 	Architecture:   "architecture",
 	SensorSelector: "sensor_selector",
+
+	Tag: "tag",
 
 	Duration: "duration", // milliseconds
 	Time:     "time",     // milliseconds epoch
