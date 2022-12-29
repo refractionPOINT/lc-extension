@@ -24,7 +24,10 @@ func init() {
 		core.Extension{
 			ExtensionName: "basic-extension",
 			SecretKey:     "1234",
-			ConfigSchema:  map[string]common.ConfigElement{},
+			ConfigSchema: common.ConfigObjectSchema{
+				Fields:       map[string]common.ConfigElement{},
+				Requirements: [][]common.ConfigKey{},
+			},
 			RequestSchema: map[string]common.RequestSchema{
 				"ping": {
 					IsUserFacing:     true,
