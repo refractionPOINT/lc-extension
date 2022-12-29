@@ -8,18 +8,23 @@ type RequestSchemas = map[RequestAction]RequestSchema
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-	IsUserFacing     bool                        `json:"is_user_facing"`    // Is this Action expected to be performed by a human, or is it for automation.
-	ShortDescription string                      `json:"short_description"` // Short description of what this Action does.
-	LongDescription  string                      `json:"long_description"`  // Longer version of the Short Description.
-	IsImpersonated   bool                        `json:"is_impersonated"`   // If true, this action requires a JWT token from a user that it will use to impersonate.
-	Parameters       RequestParameterDefinitions `json:"parameters"`        // List of Parameter Names and their definition.
+	IsUserFacing         bool                        `json:"is_user_facing"`    // Is this Action expected to be performed by a human, or is it for automation.
+	ShortDescription     string                      `json:"short_description"` // Short description of what this Action does.
+	LongDescription      string                      `json:"long_description"`  // Longer version of the Short Description.
+	IsImpersonated       bool                        `json:"is_impersonated"`   // If true, this action requires a JWT token from a user that it will use to impersonate.
+	ParameterDefinitions RequestParameterDefinitions `json:"parameters"`        // List of Parameter Names and their definition.
 }
 
 // A Parameter Name.
 type RequestParameterName = string
 
 // List of Parameters Definition per Parameter Name.
-type RequestParameterDefinitions = map[RequestParameterName]RequestParameterDefinition
+type RequestParameterDefinitions struct {
+	Parameters map[RequestParameterName]RequestParameterDefinition `json:"parameters"`
+	// All field sets must be satisfied.
+	// Each field is specifies fields where one and only one must be set.
+	Requirements []RequiredFields `json:"requirements"`
+}
 
 // The Definition of a Parameter.
 type RequestParameterDefinition struct {
