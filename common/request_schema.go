@@ -28,7 +28,6 @@ type RequestParameterDefinitions struct {
 
 // The Definition of a Parameter.
 type RequestParameterDefinition struct {
-	IsRequired   bool              `json:"is_required"`             // Is this Parameter required for this Action?
 	IsList       bool              `json:"is_list,omitempty"`       // Is this Parameter for a single item, or a list of items?
 	DataType     ParameterDataType `json:"data_type"`               // The type of values expected.
 	DefaultValue interface{}       `json:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.

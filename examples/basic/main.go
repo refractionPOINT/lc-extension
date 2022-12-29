@@ -37,7 +37,6 @@ func init() {
 					ParameterDefinitions: common.RequestParameterDefinitions{
 						Parameters: map[common.RequestParameterName]common.RequestParameterDefinition{
 							"some_value": {
-								IsRequired:   true,
 								IsList:       false,
 								DataType:     common.ParameterDataTypes.String,
 								DisplayIndex: 0,
