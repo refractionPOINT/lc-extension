@@ -24,8 +24,9 @@ type Extension struct {
 	SecretKey     string
 	Callbacks     ExtensionCallbacks
 
-	ConfigSchema  common.ConfigObjectSchema
-	RequestSchema common.RequestSchemas
+	ConfigSchema   common.ConfigObjectSchema
+	RequestSchema  common.RequestSchemas
+	RequiredEvents []common.EventName
 }
 
 type ExtensionResponse struct {
@@ -135,6 +136,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response = rcb.Callback(ctx, org, tmpData, message.Request.Config)
+	} else if message.ErrorReport != nil {
+		e.LCLoggerZerolog.Warn(fmt.Sprintf("error reported by LimaCharlie (oid=%s): %s", message.ErrorReport.Oid, message.ErrorReport.Error))
 	} else if message.ConfigValidation != nil {
 		org, err := e.generateSDK(message.ConfigValidation.Org)
 		if err != nil {
@@ -145,8 +148,14 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if e.Callbacks.ValidateConfig != nil {
 			response = e.Callbacks.ValidateConfig(ctx, org, message.ConfigValidation.Config)
 		}
+	} else if message.SchemaRequest != nil {
+		response.Data = &common.SchemaRequestResponse{
+			Config:         e.ConfigSchema,
+			Request:        e.RequestSchema,
+			RequiredEvents: e.RequiredEvents,
+		}
 	} else {
-		response.Error = "no data in request"
+		response.Error = fmt.Sprintf("no data in request: %s", requestData)
 		respond(w, http.StatusBadRequest, &response)
 		return
 	}
