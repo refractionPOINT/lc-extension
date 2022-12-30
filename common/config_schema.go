@@ -6,27 +6,27 @@ type ConfigKey = string
 // This is a config object. It can be a root of an
 // Extension's configs, or it can be a sub object.
 type ConfigObjectSchema struct {
-	Fields map[ConfigKey]ConfigElement
+	Fields map[ConfigKey]ConfigElement `json:"fields" msgpack:"fields"`
 	// All field sets must be satisfied.
 	// Each field is specifies fields where one and only one must be set.
-	Requirements []RequiredFields
+	Requirements []RequiredFields `json:"requirements" msgpack:"requirements"`
 }
 
 // Valid objects require one of the following fields to be specified.
 type RequiredFields = []ConfigKey
 
 type ConfigElement struct {
-	Description  string            `json:"description"`
-	DataType     ParameterDataType `json:"data_type"`
-	IsList       bool              `json:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
-	DisplayIndex int               `json:"display_index,omitempty"`
+	Description  string            `json:"description" msgpack:"description"`
+	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`
+	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
+	DisplayIndex int               `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
 
 	// If this element is an Object, this field
 	// will contain the definition of this Object.
-	Object ConfigObjectSchema `json:"object,omitempty"`
+	Object ConfigObjectSchema `json:"object,omitempty" msgpack:"object,omitempty"`
 
 	// This Element is populated when IsList is True.
-	Elements *ConfigElement `json:"elements,omitempty"`
+	Elements *ConfigElement `json:"elements,omitempty" msgpack:"elements,omitempty"`
 }
 
 // Example of a config for something like a Sigma Extension.

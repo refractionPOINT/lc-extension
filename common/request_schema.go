@@ -8,11 +8,11 @@ type RequestSchemas = map[RequestAction]RequestSchema
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-	IsUserFacing         bool                        `json:"is_user_facing"`    // Is this Action expected to be performed by a human, or is it for automation.
-	ShortDescription     string                      `json:"short_description"` // Short description of what this Action does.
-	LongDescription      string                      `json:"long_description"`  // Longer version of the Short Description.
-	IsImpersonated       bool                        `json:"is_impersonated"`   // If true, this action requires a JWT token from a user that it will use to impersonate.
-	ParameterDefinitions RequestParameterDefinitions `json:"parameters"`        // List of Parameter Names and their definition.
+	IsUserFacing         bool                        `json:"is_user_facing" msgpack:"is_user_facing"`       // Is this Action expected to be performed by a human, or is it for automation.
+	ShortDescription     string                      `json:"short_description" msgpack:"short_description"` // Short description of what this Action does.
+	LongDescription      string                      `json:"long_description" msgpack:"long_description"`   // Longer version of the Short Description.
+	IsImpersonated       bool                        `json:"is_impersonated" msgpack:"is_impersonated"`     // If true, this action requires a JWT token from a user that it will use to impersonate.
+	ParameterDefinitions RequestParameterDefinitions `json:"parameters" msgpack:"parameters"`               // List of Parameter Names and their definition.
 }
 
 // A Parameter Name.
@@ -20,19 +20,19 @@ type RequestParameterName = string
 
 // List of Parameters Definition per Parameter Name.
 type RequestParameterDefinitions struct {
-	Parameters map[RequestParameterName]RequestParameterDefinition `json:"parameters"`
+	Parameters map[RequestParameterName]RequestParameterDefinition `json:"parameters" msgpack:"parameters"`
 	// All field sets must be satisfied.
 	// Each field is specifies fields where one and only one must be set.
-	Requirements []RequiredFields `json:"requirements"`
+	Requirements []RequiredFields `json:"requirements" msgpack:"requirements"`
 }
 
 // The Definition of a Parameter.
 type RequestParameterDefinition struct {
-	IsList       bool              `json:"is_list,omitempty"`       // Is this Parameter for a single item, or a list of items?
-	DataType     ParameterDataType `json:"data_type"`               // The type of values expected.
-	DefaultValue interface{}       `json:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
-	EnumValues   []interface{}     `json:"enum_values,omitempty"`   // If the type is enum, these are the possible values.
-	DisplayIndex int               `json:"display_index,omitempty"` // The zero-based index ordering the display of the Parameters in a UI.
+	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"`             // Is this Parameter for a single item, or a list of items?
+	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`                             // The type of values expected.
+	DefaultValue interface{}       `json:"default_value,omitempty" msgpack:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
+	EnumValues   []interface{}     `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"`     // If the type is enum, these are the possible values.
+	DisplayIndex int               `json:"display_index,omitempty" msgpack:"display_index,omitempty"` // The zero-based index ordering the display of the Parameters in a UI.
 }
 
 // Type of data found in a Parameter.
