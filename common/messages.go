@@ -31,9 +31,9 @@ type ConfigValidationResponse struct{}
 
 type SchemaRequestMessage struct{}
 type SchemaRequestResponse struct {
-	Config         ConfigObjectSchema `json:"config_schema"`
-	Request        RequestSchemas     `json:"request_schema"`
-	RequiredEvents []EventName        `json:"required_events"`
+	Config         ConfigObjectSchema `json:"config_schema" msgpack:"config_schema"`
+	Request        RequestSchemas     `json:"request_schema" msgpack:"request_schema"`
+	RequiredEvents []EventName        `json:"required_events" msgpack:"required_events"`
 }
 
 type OrgAccessData struct {
