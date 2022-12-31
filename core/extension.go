@@ -19,7 +19,6 @@ import (
 const PROTOCOL_VERSION = 20221218
 
 type Extension struct {
-	limacharlie.LCLoggerZerolog
 	ExtensionName string
 	SecretKey     string
 	Callbacks     ExtensionCallbacks
@@ -38,6 +37,7 @@ type ExtensionCallbacks struct {
 	ValidateConfig  func(context.Context, *limacharlie.Organization, map[string]interface{}) common.Response // Optional
 	RequestHandlers map[common.ActionName]RequestCallback                                                    // Optional
 	EventHandlers   map[common.EventName]EventCallback
+	ErrorHandler    func(*common.ErrorReportMessage)
 }
 
 type RequestCallback struct {
@@ -137,7 +137,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		response = rcb.Callback(ctx, org, tmpData, message.Request.Config)
 	} else if message.ErrorReport != nil {
-		e.LCLoggerZerolog.Warn(fmt.Sprintf("error reported by LimaCharlie (oid=%s): %s", message.ErrorReport.Oid, message.ErrorReport.Error))
+		e.Callbacks.ErrorHandler(message.ErrorReport)
 	} else if message.ConfigValidation != nil {
 		org, err := e.generateSDK(message.ConfigValidation.Org)
 		if err != nil {
@@ -190,7 +190,7 @@ func (e *Extension) generateSDK(oad common.OrgAccessData) (*limacharlie.Organiza
 	return limacharlie.NewOrganizationFromClientOptions(limacharlie.ClientOptions{
 		OID: oad.OID,
 		JWT: oad.JWT,
-	}, e)
+	}, nil)
 }
 
 func unmarshalToStruct(d limacharlie.Dict, s interface{}) (interface{}, error) {
