@@ -64,11 +64,11 @@ func init() {
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
-			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}) common.Response {
+			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}, idempotentKey string) common.Response {
 				Extension.Info(fmt.Sprintf("subscribe to %s", org.GetOID()))
 				return common.Response{}
 			},
-			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}) common.Response {
+			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}, idempotentKey string) common.Response {
 				Extension.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 				return common.Response{}
 			},
@@ -98,7 +98,7 @@ func (e *BasicExtension) Init() error {
 	return nil
 }
 
-func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf map[string]interface{}) common.Response {
+func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf map[string]interface{}, idempotentKey string) common.Response {
 	request := data.(*PingRequest)
 
 	return common.Response{

@@ -42,10 +42,10 @@ type ExtensionCallbacks struct {
 
 type RequestCallback struct {
 	RequestStruct interface{}
-	Callback      func(ctx context.Context, org *limacharlie.Organization, req interface{}, conf map[string]interface{}) common.Response
+	Callback      func(ctx context.Context, org *limacharlie.Organization, req interface{}, conf map[string]interface{}, idempotentKey string) common.Response
 }
 
-type EventCallback = func(ctx context.Context, org *limacharlie.Organization, data map[string]interface{}, conf map[string]interface{}) common.Response
+type EventCallback = func(ctx context.Context, org *limacharlie.Organization, data map[string]interface{}, conf map[string]interface{}, idempotentKey string) common.Response
 
 func (e *Extension) Init() error {
 	return nil
@@ -114,7 +114,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
-		response = handler(ctx, org, message.Event.Data, message.Event.Config)
+		response = handler(ctx, org, message.Event.Data, message.Event.Config, message.IdempotencyKey)
 	} else if message.Request != nil {
 		org, err := e.generateSDK(message.Request.Org)
 		if err != nil {
@@ -135,7 +135,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
-		response = rcb.Callback(ctx, org, tmpData, message.Request.Config)
+		response = rcb.Callback(ctx, org, tmpData, message.Request.Config, message.IdempotencyKey)
 	} else if message.ErrorReport != nil {
 		e.Callbacks.ErrorHandler(message.ErrorReport)
 	} else if message.ConfigValidation != nil {
