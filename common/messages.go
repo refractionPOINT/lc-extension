@@ -84,19 +84,7 @@ type SensorUpdate struct {
 var EventTypes = struct {
 	Subscribe   EventName
 	Unsubscribe EventName
-	Every1Hour  EventName
-	Every3Hour  EventName
-	Every12Hour EventName
-	Every24Hour EventName
-	Every7Day   EventName
-	Every30Day  EventName
 }{
 	Subscribe:   "subscribe",
 	Unsubscribe: "unsubscribe",
-	Every1Hour:  "every_1h",
-	Every3Hour:  "every_3h",
-	Every12Hour: "every_12h",
-	Every24Hour: "every_24h",
-	Every7Day:   "every_7d",
-	Every30Day:  "every_30d",
 }
