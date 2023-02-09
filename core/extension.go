@@ -84,6 +84,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !verifyOrigin(requestData, signature, []byte(e.SecretKey)) {
 		response.Error = "invalid signature"
+		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
 		respond(w, http.StatusUnauthorized, nil)
 		return
 	}
@@ -104,6 +105,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		org, err := e.generateSDK(message.Event.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
 			respond(w, http.StatusInternalServerError, &response)
 			return
 		}
@@ -111,6 +113,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler, ok := e.Callbacks.EventHandlers[message.Event.EventName]
 		if !ok {
 			response.Error = fmt.Sprintf("unknown event: %s", message.Event.EventName)
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
@@ -119,6 +122,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		org, err := e.generateSDK(message.Request.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
 			respond(w, http.StatusInternalServerError, &response)
 			return
 		}
@@ -126,6 +130,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rcb, ok := e.Callbacks.RequestHandlers[message.Request.Action]
 		if !ok {
 			response.Error = fmt.Sprintf("unknown request action: %s", message.Request.Action)
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
@@ -142,6 +147,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		org, err := e.generateSDK(message.ConfigValidation.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
 			respond(w, http.StatusInternalServerError, &response)
 			return
 		}
