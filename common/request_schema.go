@@ -111,7 +111,7 @@ var ParameterDataTypes = struct {
 // 			"time_to_live": {
 // 				"is_required": false,
 // 				"data_type": "duration",
-// 				"default_value": "60m",
+// 				"default_value": 3600000,
 // 				"display_index": 2,
 // 			}
 // 		},
