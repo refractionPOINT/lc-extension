@@ -57,6 +57,6 @@ type ConfigElement struct {
 // {
 // 	"enable_new_rules": true,
 // 	"suppression": {
-// 		"suppression_time": "3h",
+// 		"suppression_time": 10800000,
 // 	}
 // }
