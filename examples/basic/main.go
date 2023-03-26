@@ -29,8 +29,8 @@ func init() {
 			SecretKey:     "1234", // Shared secret with LimaCharlie.
 			// The schema defining what the configuration for this Extension should look like.
 			ConfigSchema: common.ConfigObjectSchema{
-				Fields:       map[common.ConfigKey]common.ConfigElement{},
-				Requirements: [][]common.ConfigKey{},
+				Fields:       map[common.DataKey]common.DataElement{},
+				Requirements: [][]common.DataKey{},
 			},
 			// The schema defining what requests to this Extension should look like.
 			RequestSchema: map[string]common.RequestSchema{
@@ -49,6 +49,14 @@ func init() {
 						},
 						Requirements: [][]common.RequestParameterName{
 							{"some_value"}, // The "some_value" parameter is required and has no alternative parameters.
+						},
+					},
+					ResponseDefinition: &common.ResponseSchema{
+						Fields: map[string]common.DataElement{
+							"some_value": {
+								Description: "same value as received",
+								DataType:    common.ParameterDataTypes.String,
+							},
 						},
 					},
 				},
