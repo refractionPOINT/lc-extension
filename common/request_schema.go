@@ -8,11 +8,13 @@ type RequestSchemas = map[RequestAction]RequestSchema
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
+	IsDefaultRequest     bool                        `json:"is_default" msgpack:"is_default"`               // Is the default Request when displaying the state of the Extension.
 	IsUserFacing         bool                        `json:"is_user_facing" msgpack:"is_user_facing"`       // Is this Action expected to be performed by a human, or is it for automation.
 	ShortDescription     string                      `json:"short_description" msgpack:"short_description"` // Short description of what this Action does.
 	LongDescription      string                      `json:"long_description" msgpack:"long_description"`   // Longer version of the Short Description.
 	IsImpersonated       bool                        `json:"is_impersonated" msgpack:"is_impersonated"`     // If true, this action requires a JWT token from a user that it will use to impersonate.
 	ParameterDefinitions RequestParameterDefinitions `json:"parameters" msgpack:"parameters"`               // List of Parameter Names and their definition.
+	ResponseDefinition   *ResponseSchema             `json:"response" msgpack:"response"`                   // Schema of the expected Response.
 }
 
 // A Parameter Name.
@@ -32,6 +34,8 @@ type RequestParameterDefinition struct {
 	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`                             // The type of values expected.
 	DefaultValue interface{}       `json:"default_value,omitempty" msgpack:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
 	EnumValues   []interface{}     `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"`     // If the type is enum, these are the possible values.
+	Description  string            `json:"description" msgpack:"description"`
+	PlaceHolder  string            `json:"placeholder" msgpack:"placeholder"`                         // Placeholder to display for this field.
 	DisplayIndex int               `json:"display_index,omitempty" msgpack:"display_index,omitempty"` // The zero-based index ordering the display of the Parameters in a UI.
 }
 
@@ -87,6 +91,11 @@ var ParameterDataTypes = struct {
 	YAML: "yaml",
 
 	Object: "object",
+}
+
+// Schema for Responses from Requests
+type ResponseSchema struct {
+	Fields map[DataKey]DataElement `json:"fields" msgpack:"fields"`
 }
 
 // Examples of full schemas for something like a Yara Scanning Extension:
