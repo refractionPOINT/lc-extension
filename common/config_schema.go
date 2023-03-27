@@ -24,9 +24,6 @@ type DataElement struct {
 	// If this element is an Object, this field
 	// will contain the definition of this Object.
 	Object *ConfigObjectSchema `json:"object,omitempty" msgpack:"object,omitempty"`
-
-	// This Element is populated when IsList is True.
-	Elements *DataElement `json:"elements,omitempty" msgpack:"elements,omitempty"`
 }
 
 // Example of a config for something like a Sigma Extension.
