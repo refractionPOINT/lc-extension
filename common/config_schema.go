@@ -16,6 +16,7 @@ type ConfigObjectSchema struct {
 type RequiredFields = []DataKey
 
 type DataElement struct {
+	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
 	Description  string            `json:"description" msgpack:"description"`
 	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`
 	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
