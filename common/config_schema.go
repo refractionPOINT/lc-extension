@@ -16,6 +16,7 @@ type ConfigObjectSchema struct {
 type RequiredFields = []DataKey
 
 type DataElement struct {
+	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
 	Description  string            `json:"description" msgpack:"description"`
 	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`
 	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
@@ -24,6 +25,12 @@ type DataElement struct {
 	// If this element is an Object, this field
 	// will contain the definition of this Object.
 	Object *ConfigObjectSchema `json:"object,omitempty" msgpack:"object,omitempty"`
+
+	// List of Requests that can be performed on the given
+	// element. Will translate into buttons on elements that
+	// will issue a Request to Extension with the element's
+	// data included.
+	SupportedActions []ActionName `json:"supported_actions,omitempty" msgpack:"supported_actions,omitempty"`
 }
 
 // Example of a config for something like a Sigma Extension.

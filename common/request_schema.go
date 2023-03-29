@@ -6,6 +6,9 @@ type RequestAction = string
 // List of Parameters expected per Action.
 type RequestSchemas = map[RequestAction]RequestSchema
 
+// A human friendly label for something.
+type Label = string
+
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
 	IsDefaultRequest     bool                        `json:"is_default" msgpack:"is_default"`               // Is the default Request when displaying the state of the Extension.
@@ -30,6 +33,7 @@ type RequestParameterDefinitions struct {
 
 // The Definition of a Parameter.
 type RequestParameterDefinition struct {
+	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"`                 // Human readable label.
 	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"`             // Is this Parameter for a single item, or a list of items?
 	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`                             // The type of values expected.
 	DefaultValue interface{}       `json:"default_value,omitempty" msgpack:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
