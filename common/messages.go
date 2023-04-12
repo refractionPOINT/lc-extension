@@ -43,8 +43,8 @@ type SchemaRequestResponse struct {
 
 // A set of org credentials the Extension can use.
 type OrgAccessData struct {
-	OID string `json:"oid"`
-	JWT string `json:"jwt"`
+	OID string `json:"oid" msgpack:"oid"`
+	JWT string `json:"jwt" msgpack:"jwt"`
 }
 
 type ActionName = string
