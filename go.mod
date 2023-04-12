@@ -2,7 +2,7 @@ module github.com/refractionPOINT/lc-extension
 
 go 1.19
 
-require github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230215163839-251d0a4a5966
+require github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230412162955-78ac6da7ce71
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

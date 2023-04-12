@@ -15,8 +15,8 @@ github.com/mattn/go-isatty v0.0.18/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230215163839-251d0a4a5966 h1:rZg7nHOVL2/MBpXHUBwubHp24zuS7H754WM+5G1BCA0=
-github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230215163839-251d0a4a5966/go.mod h1:P1wVdCR3k8PFgRpsnF3EUwAJKkQdt+FydQ/nsEidoG4=
+github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230412162955-78ac6da7ce71 h1:jCpuJbxFK+Yufi7vroyb7ptyDElCcSQ1kOIrRnM+zHM=
+github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230412162955-78ac6da7ce71/go.mod h1:P1wVdCR3k8PFgRpsnF3EUwAJKkQdt+FydQ/nsEidoG4=
 github.com/rs/xid v1.4.0/go.mod h1:trrq9SKmegXys3aeAKXMUTdJsYXVwGY3RLcfgqegfbg=
 github.com/rs/zerolog v1.28.0/go.mod h1:NILgTygv/Uej1ra5XxGf82ZFSLk58MFGAUS2o6usyD0=
 github.com/rs/zerolog v1.29.0 h1:Zes4hju04hjbvkVkOhdl2HpZa+0PmVwigmo8XoORE5w=
