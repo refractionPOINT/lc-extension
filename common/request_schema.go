@@ -18,6 +18,7 @@ type RequestSchema struct {
 	IsImpersonated       bool                        `json:"is_impersonated" msgpack:"is_impersonated"`     // If true, this action requires a JWT token from a user that it will use to impersonate.
 	ParameterDefinitions RequestParameterDefinitions `json:"parameters" msgpack:"parameters"`               // List of Parameter Names and their definition.
 	ResponseDefinition   *ResponseSchema             `json:"response" msgpack:"response"`                   // Schema of the expected Response.
+	DefaultParameters    interface{}                 `json:"default_parameters" msgpack:"default_parameters"`
 }
 
 // A Parameter Name.
