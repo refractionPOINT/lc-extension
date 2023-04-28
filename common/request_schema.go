@@ -99,7 +99,28 @@ var ParameterDataTypes = struct {
 
 // Schema for Responses from Requests
 type ResponseSchema struct {
-	Fields map[DataKey]DataElement `json:"fields" msgpack:"fields"`
+	Fields map[DataKey]ResponseDataElement `json:"fields" msgpack:"fields"`
+}
+
+type ResponseDataElement struct {
+	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
+	Description  string            `json:"description" msgpack:"description"`
+	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`
+	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
+	DisplayIndex int               `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
+
+	RenderType  string            `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
+	KeyDataType ParameterDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
+
+	// If this element is an Object, this field
+	// will contain the definition of this Object.
+	Object *ConfigObjectSchema `json:"object,omitempty" msgpack:"object,omitempty"`
+
+	// List of Requests that can be performed on the given
+	// element. Will translate into buttons on elements that
+	// will issue a Request to Extension with the element's
+	// data included.
+	SupportedActions []ActionName `json:"supported_actions,omitempty" msgpack:"supported_actions,omitempty"`
 }
 
 // Examples of full schemas for something like a Yara Scanning Extension:

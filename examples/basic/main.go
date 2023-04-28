@@ -52,7 +52,7 @@ func init() {
 						},
 					},
 					ResponseDefinition: &common.ResponseSchema{
-						Fields: map[string]common.DataElement{
+						Fields: map[string]common.ResponseDataElement{
 							"some_value": {
 								Description: "same value as received",
 								DataType:    common.ParameterDataTypes.String,
