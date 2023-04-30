@@ -1,0 +1,20 @@
+steps:
+  - name: 'gcr.io/${PROJECT_ID}/pytest_3'
+    args: [ '-v', 'tests' ]
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args: ['-c', 'docker login --username=$$USERNAME --password=$$PASSWORD']
+    secretEnv: ['USERNAME', 'PASSWORD']
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args: ['-c', 'docker build -f Dockerfile -t refractionpoint/lc-extension:$TAG_NAME .']
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args: ['-c', 'docker push refractionpoint/lc-extension:$TAG_NAME']
+availableSecrets:
+  secretManager:
+  - versionName: projects/${PROJECT_ID}/secrets/DOCKERHUB/versions/latest
+    env: 'PASSWORD'
+  - versionName: projects/${PROJECT_ID}/secrets/DOCKERHUB_USERNAME/versions/latest
+    env: 'USERNAME'
+timeout: 1h
