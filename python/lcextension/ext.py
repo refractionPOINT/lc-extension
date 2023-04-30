@@ -72,12 +72,12 @@ class Extension(object):
             return Response()
         if msg.msg_request is not None:
             sdk = limacharlie.Manager(oid = msg.msg_request.org_access_data.oid, jwt = msg.msg_request.org_access_data.jwt)
-            return self.handleRequest(sdk, msg.msg_request.action, msg.msg_request.data, msg.msg_request.conf), 200
+            return self.handleRequest(sdk, msg.msg_request.action, msg.msg_request.data, msg.msg_request.conf)
         if msg.msg_event is not None:
             sdk = limacharlie.Manager(oid = msg.msg_event.org_access_data.oid, jwt = msg.msg_event.org_access_data.jwt)
             return self._handleEvent(sdk, msg.msg_event.data, msg.msg_event.conf)
         if msg.msg_error_report is not None:
-            self.handleError(msg.msg_error_report)
+            self.handleError(msg.msg_error_report.oid, msg.msg_error_report.error)
             return Response()
         if msg.msg_schema_request is not None:
             return self.schema
