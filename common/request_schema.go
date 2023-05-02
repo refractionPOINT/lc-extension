@@ -35,6 +35,8 @@ type RequestParameterDefinitions struct {
 type RequestParameterDefinition struct {
 	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"`                 // Human readable label.
 	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"`             // Is this Parameter for a single item, or a list of items?
+	IsTuple      bool              `json:"is_tuple,omitempty" msgpack:"is_tuple,omitempty"`           // This is a tuple of this datatype.
+	TupleSize    int               `json:"tuple_size,omitempty" msgpack:"tuple_size,omitempty"`       // The number of items in the tuple(s).
 	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`                             // The type of values expected.
 	DefaultValue interface{}       `json:"default_value,omitempty" msgpack:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
 	EnumValues   []interface{}     `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"`     // If the type is enum, these are the possible values.
