@@ -8,6 +8,9 @@ type SchemaKey = string
 type SchemaObject struct {
 	Fields map[SchemaKey]SchemaElement `json:"fields" msgpack:"fields"`
 
+	// Extended definition for Response elements.
+	// Not available at the root of the Response.
+	// -------------------------------------------
 	RenderType  string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
 	KeyDataType SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
 
