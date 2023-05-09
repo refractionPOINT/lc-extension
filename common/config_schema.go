@@ -1,31 +1,51 @@
 package common
 
 // A data object key.
-type DataKey = string
+type SchemaKey = string
 
 // This is a config object. It can be a root of an
 // Extension's configs, or it can be a sub object.
-type ConfigObjectSchema struct {
-	Fields map[DataKey]DataElement `json:"fields" msgpack:"fields"`
+type SchemaObject struct {
+	Fields map[SchemaKey]SchemaElement `json:"fields" msgpack:"fields"`
+
+	// Extended definition for Response elements.
+	// Not available at the root of the Response.
+	// -------------------------------------------
+	RenderType  string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
+	KeyDataType SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
+
+	// Extended definition for Interactive elements
+	// like Configs and Requests.
+	// -------------------------------------------
 	// All field sets must be satisfied.
 	// Each field is specifies fields where one and only one must be set.
 	Requirements []RequiredFields `json:"requirements" msgpack:"requirements"`
 }
 
 // Valid objects require one of the following fields to be specified.
-type RequiredFields = []DataKey
+type RequiredFields = []SchemaKey
 
-type DataElement struct {
-	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
-	Description  string            `json:"description" msgpack:"description"`
-	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`
-	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
-	DisplayIndex int               `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
+type SchemaElement struct {
+	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
+	Description  string         `json:"description" msgpack:"description"`
+	DataType     SchemaDataType `json:"data_type" msgpack:"data_type"`
+	IsList       bool           `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
+	DisplayIndex int            `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
+	DefaultValue interface{}    `json:"default_value,omitempty" msgpack:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
 
 	// If this element is an Object, this field
 	// will contain the definition of this Object.
-	Object *ConfigObjectSchema `json:"object,omitempty" msgpack:"object,omitempty"`
+	Object *SchemaObject `json:"object,omitempty" msgpack:"object,omitempty"`
 
+	// Extended definition for Interactive elements
+	// like Configs and Requests.
+	// -------------------------------------------
+	EnumValues  []interface{} `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
+	PlaceHolder string        `json:"placeholder" msgpack:"placeholder"`                     // Placeholder to display for this field.
+
+	// Extended definition for Actionable elements
+	// like Configs and Responses.
+	// -------------------------------------------
 	// List of Requests that can be performed on the given
 	// element. Will translate into buttons on elements that
 	// will issue a Request to Extension with the element's

@@ -36,9 +36,9 @@ type ConfigValidationResponse struct{}
 // A request to get the schema required by the Extension for its configuration and requests.
 type SchemaRequestMessage struct{}
 type SchemaRequestResponse struct {
-	Config         ConfigObjectSchema `json:"config_schema" msgpack:"config_schema"`
-	Request        RequestSchemas     `json:"request_schema" msgpack:"request_schema"`
-	RequiredEvents []EventName        `json:"required_events" msgpack:"required_events"`
+	Config         SchemaObject   `json:"config_schema" msgpack:"config_schema"`
+	Request        RequestSchemas `json:"request_schema" msgpack:"request_schema"`
+	RequiredEvents []EventName    `json:"required_events" msgpack:"required_events"`
 }
 
 // A set of org credentials the Extension can use.
