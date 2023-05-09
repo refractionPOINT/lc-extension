@@ -11,45 +11,19 @@ type Label = string
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-	IsDefaultRequest     bool                        `json:"is_default" msgpack:"is_default"`               // Is the default Request when displaying the state of the Extension.
-	IsUserFacing         bool                        `json:"is_user_facing" msgpack:"is_user_facing"`       // Is this Action expected to be performed by a human, or is it for automation.
-	ShortDescription     string                      `json:"short_description" msgpack:"short_description"` // Short description of what this Action does.
-	LongDescription      string                      `json:"long_description" msgpack:"long_description"`   // Longer version of the Short Description.
-	IsImpersonated       bool                        `json:"is_impersonated" msgpack:"is_impersonated"`     // If true, this action requires a JWT token from a user that it will use to impersonate.
-	ParameterDefinitions RequestParameterDefinitions `json:"parameters" msgpack:"parameters"`               // List of Parameter Names and their definition.
-	ResponseDefinition   *ResponseSchema             `json:"response" msgpack:"response"`                   // Schema of the expected Response.
+	IsDefaultRequest     bool          `json:"is_default" msgpack:"is_default"`               // Is the default Request when displaying the state of the Extension.
+	IsUserFacing         bool          `json:"is_user_facing" msgpack:"is_user_facing"`       // Is this Action expected to be performed by a human, or is it for automation.
+	ShortDescription     string        `json:"short_description" msgpack:"short_description"` // Short description of what this Action does.
+	LongDescription      string        `json:"long_description" msgpack:"long_description"`   // Longer version of the Short Description.
+	IsImpersonated       bool          `json:"is_impersonated" msgpack:"is_impersonated"`     // If true, this action requires a JWT token from a user that it will use to impersonate.
+	ParameterDefinitions SchemaObject  `json:"parameters" msgpack:"parameters"`               // List of Parameter Names and their definition.
+	ResponseDefinition   *SchemaObject `json:"response" msgpack:"response"`                   // Schema of the expected Response.
 }
-
-// A Parameter Name.
-type RequestParameterName = string
-
-// List of Parameters Definition per Parameter Name.
-type RequestParameterDefinitions struct {
-	Parameters map[RequestParameterName]RequestParameterDefinition `json:"parameters" msgpack:"parameters"`
-	// All field sets must be satisfied.
-	// Each field is specifies fields where one and only one must be set.
-	Requirements []RequiredFields `json:"requirements" msgpack:"requirements"`
-}
-
-// The Definition of a Parameter.
-type RequestParameterDefinition struct {
-	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"`                 // Human readable label.
-	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"`             // Is this Parameter for a single item, or a list of items?
-	IsTuple      bool              `json:"is_tuple,omitempty" msgpack:"is_tuple,omitempty"`           // This is a tuple of this datatype.
-	TupleSize    int               `json:"tuple_size,omitempty" msgpack:"tuple_size,omitempty"`       // The number of items in the tuple(s).
-	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`                             // The type of values expected.
-	DefaultValue interface{}       `json:"default_value,omitempty" msgpack:"default_value,omitempty"` // If a default value should be set for is_required: false Parameters.
-	EnumValues   []interface{}     `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"`     // If the type is enum, these are the possible values.
-	Description  string            `json:"description" msgpack:"description"`
-	PlaceHolder  string            `json:"placeholder" msgpack:"placeholder"`                         // Placeholder to display for this field.
-	DisplayIndex int               `json:"display_index,omitempty" msgpack:"display_index,omitempty"` // The zero-based index ordering the display of the Parameters in a UI.
-}
-
-// Type of data found in a Parameter.
-type ParameterDataType = string
 
 // Strongly typed list of Parameter Data Types.
-var ParameterDataTypes = struct {
+type SchemaDataType = string
+
+var SchemaDataTypes = struct {
 	String  string
 	Integer string
 	Boolean string
@@ -97,32 +71,6 @@ var ParameterDataTypes = struct {
 	YAML: "yaml",
 
 	Object: "object",
-}
-
-// Schema for Responses from Requests
-type ResponseSchema struct {
-	Fields map[DataKey]ResponseDataElement `json:"fields" msgpack:"fields"`
-}
-
-type ResponseDataElement struct {
-	Label        Label             `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
-	Description  string            `json:"description" msgpack:"description"`
-	DataType     ParameterDataType `json:"data_type" msgpack:"data_type"`
-	IsList       bool              `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
-	DisplayIndex int               `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
-
-	RenderType  string            `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
-	KeyDataType ParameterDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
-
-	// If this element is an Object, this field
-	// will contain the definition of this Object.
-	Object *ConfigObjectSchema `json:"object,omitempty" msgpack:"object,omitempty"`
-
-	// List of Requests that can be performed on the given
-	// element. Will translate into buttons on elements that
-	// will issue a Request to Extension with the element's
-	// data included.
-	SupportedActions []ActionName `json:"supported_actions,omitempty" msgpack:"supported_actions,omitempty"`
 }
 
 // Examples of full schemas for something like a Yara Scanning Extension:
