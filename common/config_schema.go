@@ -13,6 +13,7 @@ type SchemaObject struct {
 	// -------------------------------------------
 	RenderType  string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
 	KeyDataType SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
+	KeyName     string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
 
 	// Extended definition for Interactive elements
 	// like Configs and Requests.
