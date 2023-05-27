@@ -28,9 +28,9 @@ func init() {
 			ExtensionName: "basic-extension",
 			SecretKey:     "1234", // Shared secret with LimaCharlie.
 			// The schema defining what the configuration for this Extension should look like.
-			ConfigSchema: common.ConfigObjectSchema{
-				Fields:       map[common.DataKey]common.DataElement{},
-				Requirements: [][]common.DataKey{},
+			ConfigSchema: common.SchemaObject{
+				Fields:       map[common.SchemaKey]common.SchemaElement{},
+				Requirements: [][]common.SchemaKey{},
 			},
 			// The schema defining what requests to this Extension should look like.
 			RequestSchema: map[string]common.RequestSchema{
@@ -39,23 +39,23 @@ func init() {
 					ShortDescription: "simple ping request",
 					LongDescription:  "will echo back some value",
 					IsImpersonated:   false, // This action will operate as the Extension itself, NOT impersonating the user calling the action.
-					ParameterDefinitions: common.RequestParameterDefinitions{
-						Parameters: map[common.RequestParameterName]common.RequestParameterDefinition{
+					ParameterDefinitions: common.SchemaObject{
+						Fields: map[common.SchemaKey]common.SchemaElement{
 							"some_value": {
 								IsList:       false, // This is a single string, not a list of strings.
-								DataType:     common.ParameterDataTypes.String,
+								DataType:     common.SchemaDataTypes.String,
 								DisplayIndex: 0, // Display this parameter as the first one (index 0).
 							},
 						},
-						Requirements: [][]common.RequestParameterName{
+						Requirements: [][]common.SchemaKey{
 							{"some_value"}, // The "some_value" parameter is required and has no alternative parameters.
 						},
 					},
-					ResponseDefinition: &common.ResponseSchema{
-						Fields: map[string]common.ResponseDataElement{
+					ResponseDefinition: &common.SchemaObject{
+						Fields: map[common.SchemaKey]common.SchemaElement{
 							"some_value": {
 								Description: "same value as received",
-								DataType:    common.ParameterDataTypes.String,
+								DataType:    common.SchemaDataTypes.String,
 							},
 						},
 					},

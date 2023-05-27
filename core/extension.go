@@ -23,7 +23,7 @@ type Extension struct {
 	SecretKey     string
 	Callbacks     ExtensionCallbacks
 
-	ConfigSchema   common.ConfigObjectSchema
+	ConfigSchema   common.SchemaObject
 	RequestSchema  common.RequestSchemas
 	RequiredEvents []common.EventName
 }
