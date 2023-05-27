@@ -3,19 +3,19 @@ import lcextension
 class SampleExtension(lcextension.Extension):
     def init(self):
 
-        self.configSchema = lcextension.SchemaObject()
-        self.requestSchema = lcextension.RequestSchemas()
-        self.requestSchema.Actions = {
+        self.configSchema = lcextension.SchemaObject()    # The shape of the configuration objects.
+        self.requestSchema = lcextension.RequestSchemas() # The shape of requests that are accepted.
+        self.requestSchema.Actions = { # Action Name => Definition
             'ping': lcextension.RequestSchema(
-                IsUserFacing = True,
+                IsUserFacing = True, # Should this Action be displayed in the webapp?
                 ShortDescription = "simple ping request",
                 LongDescription = "will echo back some value",
-                IsImpersonated = False,
+                IsImpersonated = False, # If False, SDK received is for the Extension, else for the caller?
                 ParameterDefinitions = lcextension.SchemaObject(
                     Fields = {
                         "some_value": lcextension.SchemaElement(
                             IsList = False,
-                            DataType = lcextension.SchemaDataTypes.STRING,
+                            DataType = lcextension.SchemaDataTypes.String,
                             DisplayIndex = 1,
                         ),
                     },
@@ -25,15 +25,23 @@ class SampleExtension(lcextension.Extension):
                     Fields = {
                         "some_value": lcextension.SchemaElement(
                             Description = "same value as received",
-                            DataType = lcextension.SchemaDataTypes.STRING,
+                            DataType = lcextension.SchemaDataTypes.String,
                         ),
                     }
                 ),
             ),
         }
+        # Request handlers receive:
+        # - SDK: limacharlie.Manager()
+        # - Request Data: {}
+        # - Extension Configuration: {}
         self.requestHandlers = {
             'ping': self.handlePing,
         }
+        # Event handlers receive:
+        # - SDK: limacharlie.Manager()
+        # - Event Data: {}
+        # - Extension Configuration: {}
         self.eventHandlers = {
             'subscribe': self.handleSubscribe,
             'unsubscribe': self.handleUnsubscribe,
@@ -48,9 +56,11 @@ class SampleExtension(lcextension.Extension):
         return lcextension.Response(data = data)
     
     def handleSubscribe(self, sdk, data, conf):
+        self.log(f"new organization has subscribed: data={data} conf={conf}")
         return lcextension.Response()
     
     def handleUnsubscribe(self, sdk, data, conf):
+        self.log(f"new organization has unsubscribed: data={data} conf={conf}")
         return lcextension.Response()
 
     def handleError(self, oid, error):
