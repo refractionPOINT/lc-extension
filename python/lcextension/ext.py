@@ -8,6 +8,7 @@ import time
 import sys
 import threading
 from .messages import *
+from .schema import *
 
 _PROTOCOL_VERSION = 20221218
 
@@ -17,7 +18,9 @@ class Extension(object):
         self._name = name
         self._secret = secret
         self._lock = threading.Lock()
-        self.schema = SchemaDefinition()
+        self.configSchema = SchemaObject()
+        self.requestSchema = RequestSchemas()
+        self.requiredEvents = []
 
         self._app = flask.Flask(self._name)
 
@@ -80,7 +83,11 @@ class Extension(object):
             self.handleError(msg.msg_error_report.oid, msg.msg_error_report.error)
             return Response()
         if msg.msg_schema_request is not None:
-            return self.schema
+            return {
+                'config_schema': self.configSchema.toJSON(),
+                'request_schema': self.requestSchema.toJSON(),
+                'required_events': self.requiredEvents,
+            }
         return Response(error = 'no data in request')
     
     def _handleEvent(self, sdk, data, conf):

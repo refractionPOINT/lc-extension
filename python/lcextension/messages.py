@@ -94,10 +94,3 @@ class Response(object):
         else:
             ret['data'] = self.data
         return ret
-
-class SchemaDefinition(object):
-    def __init__(self):
-        pass
-
-    def toJSON(self):
-        return {}

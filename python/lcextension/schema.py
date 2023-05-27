@@ -1,11 +1,14 @@
-
 class SchemaObject(object):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.Fields = {} # {} of Field name to SchemaElement
         self.RenderType = None
         self.KeyDataType = None # SchemaDataTypes
         self.KeyName = None
         self.Requirements = [] # [] of [] of Field names
+        for k, v in kwargs:
+            if not hasattr(self, k):
+                raise Exception(f"unknown attribute {k}")
+            setattr(self, k, v)
 
     def serialize(self):
         return {
@@ -17,7 +20,7 @@ class SchemaObject(object):
         }
 
 class SchemaElement(object):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.Label = ""
         self.Description = ""
         self.DataType = None # SchemaDataTypes
@@ -28,6 +31,10 @@ class SchemaElement(object):
         self.EnumValues = None # [] of string
         self.PlaceHolder = None
         self.SupportedActions = None # [] of Action names
+        for k, v in kwargs:
+            if not hasattr(self, k):
+                raise Exception(f"unknown attribute {k}")
+            setattr(self, k, v)
 
     def serialize(self):
         return {
@@ -51,7 +58,7 @@ class RequestSchemas(object):
         return {n : a.serialize() for n, a in self.Actions.items()}
 
 class RequestSchema(object):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.IsDefaultRequest = False
         self.IsUserFacing = True
         self.ShortDescription = ""
@@ -59,6 +66,10 @@ class RequestSchema(object):
         self.IsImpersonated = False
         self.ParameterDefinitions = SchemaObject()
         self.ResponseDefinition = None # SchemaObject
+        for k, v in kwargs:
+            if not hasattr(self, k):
+                raise Exception(f"unknown attribute {k}")
+            setattr(self, k, v)
 
     def serialize(self):
         return {
