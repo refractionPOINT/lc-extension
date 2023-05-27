@@ -2,6 +2,7 @@ import lcextension
 
 class SampleExtension(lcextension.Extension):
     def init(self):
+
         self.configSchema = lcextension.SchemaObject()
         self.requestSchema = lcextension.RequestSchemas()
         self.requestSchema.Actions = {
@@ -54,3 +55,6 @@ class SampleExtension(lcextension.Extension):
 
     def handleError(self, oid, error):
         self.logCritical(f"received error from limacharlie for {oid}: {error}")
+
+def __main__():
+    SampleExtension("basic-extension", "1234").run()

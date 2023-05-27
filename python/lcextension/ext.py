@@ -52,6 +52,9 @@ class Extension(object):
 
         self.init()
 
+    def run(self):
+        return self._app.run()
+
     def _verifyOrigin(self, data, signature):
         if self._secret is None:
             return True
