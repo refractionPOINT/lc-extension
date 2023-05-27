@@ -5,6 +5,8 @@ class SampleExtension(lcextension.Extension):
         self.schema = lcextension.SchemaDefinition()
 
     def validateConfig(self, sdk, conf):
+        # If this function generates an Exception() it will
+        # be reported as a failure to validate for LimaCharlie.
         pass
 
     def handleRequest(self, sdk, action, data, conf):

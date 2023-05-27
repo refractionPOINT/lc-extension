@@ -96,7 +96,7 @@ class Extension(object):
         with self._lock:
             ts = time.time()
             entry = {
-                'service' : self._name,
+                'extension' : self._name,
                 'timestamp' : {
                     'seconds' : int( ts ),
                     'nanos' : int( ( ts % 1 ) * 1000000000 )
@@ -119,7 +119,7 @@ class Extension(object):
             ts = time.time()
             sys.stderr.write( json.dumps( {
                 'message' : msg,
-                'actor' : self._name,
+                'extension' : self._name,
                 'timestamp' : {
                     'seconds' : int( ts ),
                     'nanos' : int( ( ts % 1 ) * 1000000000 )
