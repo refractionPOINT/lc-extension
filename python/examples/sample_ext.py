@@ -30,13 +30,26 @@ class SampleExtension(lcextension.Extension):
                 ),
             ),
         }
+        self.requestHandlers = {
+            'ping': self.handlePing,
+        }
+        self.eventHandlers = {
+            'subscribe': self.handleSubscribe,
+            'unsubscribe': self.handleUnsubscribe,
+        }
 
     def validateConfig(self, sdk, conf):
         # If this function generates an Exception() it will
         # be reported as a failure to validate for LimaCharlie.
         pass
 
-    def handleRequest(self, sdk, action, data, conf):
+    def handlePing(self, sdk, data, conf):
+        return lcextension.Response(data = data)
+    
+    def handleSubscribe(self, sdk, data, conf):
+        return lcextension.Response()
+    
+    def handleUnsubscribe(self, sdk, data, conf):
         return lcextension.Response()
 
     def handleError(self, oid, error):

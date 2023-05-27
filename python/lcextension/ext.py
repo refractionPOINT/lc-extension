@@ -75,17 +75,25 @@ class Extension(object):
             return Response()
         if msg.msg_request is not None:
             sdk = limacharlie.Manager(oid = msg.msg_request.org_access_data.oid, jwt = msg.msg_request.org_access_data.jwt)
-            return self.handleRequest(sdk, msg.msg_request.action, msg.msg_request.data, msg.msg_request.conf)
+            handler = self.requestHandlers.get(msg.msg_request.action, None)
+            if handler is None:
+                self.logCritical(f"unknown action '{msg.msg_request.action}'")
+                return Response(error = f"unknown action '{msg.msg_request.action}'")
+            return handler(sdk, msg.msg_request.data, msg.msg_request.conf)
         if msg.msg_event is not None:
             sdk = limacharlie.Manager(oid = msg.msg_event.org_access_data.oid, jwt = msg.msg_event.org_access_data.jwt)
-            return self._handleEvent(sdk, msg.msg_event.data, msg.msg_event.conf)
+            handler = self.eventHandlers.get(msg.msg_event.event_name, None)
+            if handler is None:
+                self.logCritical(f"unknown event '{msg.msg_event.event_name}'")
+                return Response(error = f"unknown event '{msg.msg_event.event_name}'")
+            return handler(sdk, msg.msg_event.data, msg.msg_event.conf)
         if msg.msg_error_report is not None:
             self.handleError(msg.msg_error_report.oid, msg.msg_error_report.error)
             return Response()
         if msg.msg_schema_request is not None:
             return {
-                'config_schema': self.configSchema.toJSON(),
-                'request_schema': self.requestSchema.toJSON(),
+                'config_schema': self.configSchema.serialize(),
+                'request_schema': self.requestSchema.serialize(),
                 'required_events': self.requiredEvents,
             }
         return Response(error = 'no data in request')
