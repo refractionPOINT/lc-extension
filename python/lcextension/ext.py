@@ -10,8 +10,6 @@ import threading
 from .messages import *
 from .schema import *
 
-_PROTOCOL_VERSION = 20221218
-
 class Extension(object):
     
     def __init__(self, name, secret):
@@ -52,8 +50,8 @@ class Extension(object):
 
         self.init()
 
-    def run(self):
-        return self._app.run()
+    def getApp(self):
+        return self._app
 
     def _verifyOrigin(self, data, signature):
         if self._secret is None:

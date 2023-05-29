@@ -5,7 +5,7 @@ class SchemaObject(object):
         self.KeyDataType = None # SchemaDataTypes
         self.KeyName = None
         self.Requirements = [] # [] of [] of Field names
-        for k, v in kwargs:
+        for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
@@ -31,7 +31,7 @@ class SchemaElement(object):
         self.EnumValues = None # [] of string
         self.PlaceHolder = None
         self.SupportedActions = None # [] of Action names
-        for k, v in kwargs:
+        for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
@@ -66,7 +66,7 @@ class RequestSchema(object):
         self.IsImpersonated = False
         self.ParameterDefinitions = SchemaObject()
         self.ResponseDefinition = None # SchemaObject
-        for k, v in kwargs:
+        for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
