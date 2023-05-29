@@ -44,7 +44,7 @@ func init() {
 							"some_value": {
 								IsList:       false, // This is a single string, not a list of strings.
 								DataType:     common.SchemaDataTypes.String,
-								DisplayIndex: 0, // Display this parameter as the first one (index 0).
+								DisplayIndex: 1, // Display this parameter as the first one (index 1).
 							},
 						},
 						Requirements: [][]common.SchemaKey{
