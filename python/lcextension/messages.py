@@ -32,9 +32,9 @@ class Message(object):
             self.msg_event = MessageEvent(d)
 
 class OrgAccessData(object):
-    def __init__(self, oid, jwt):
-        self.oid = oid
-        self.jwt = jwt
+    def __init__(self, orgData):
+        self.oid = orgData.get( 'oid', None )
+        self.jwt = orgData.get( 'jwt', None )
 
 class MessageHeartBeat(object):
     def __init__(self, data):
