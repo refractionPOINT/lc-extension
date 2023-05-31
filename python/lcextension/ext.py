@@ -28,10 +28,9 @@ class Extension(object):
             if not sig:
                 return {}, 200
             data = flask.request.get_data()
-            if flask.request.headers.get('Content-Type', '') == 'gzip':
+            if flask.request.headers.get('Content-Encoding', '') == 'gzip':
                 data = gzip.decompress(data)
             if not self._verifyOrigin(data, sig):
-                self.log( f"invalid sig over: {data}" )
                 return {"error": "invalid signature"}, 401
             try:
                 data = json.loads(data)
