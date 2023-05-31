@@ -14,7 +14,7 @@ class Extension(object):
     
     def __init__(self, name, secret):
         self._name = name
-        self._secret = secret.encode()
+        self._secret = secret
         self._lock = threading.Lock()
         self.configSchema = SchemaObject()
         self.requestSchema = RequestSchemas()
@@ -31,6 +31,7 @@ class Extension(object):
             if flask.request.headers.get('Content-Type', '') == 'gzip':
                 data = gzip.decompress(data)
             if not self._verifyOrigin(data, sig):
+                self.log( f"invalid sig over: {data}" )
                 return {"error": "invalid signature"}, 401
             try:
                 data = json.loads(data)
@@ -60,7 +61,7 @@ class Extension(object):
             data = data.encode()
         if isinstance(signature, bytes):
             signature = signature.decode()
-        expected = hmac.new(self._secret, msg = data, digestmod = hashlib.sha256).hexdigest()
+        expected = hmac.new(self._secret.encode(), msg = data, digestmod = hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
     def _extRequestHandler(self, data):
