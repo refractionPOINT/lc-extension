@@ -14,7 +14,7 @@ class Extension(object):
     
     def __init__(self, name, secret):
         self._name = name
-        self._secret = secret
+        self._secret = secret.encode()
         self._lock = threading.Lock()
         self.configSchema = SchemaObject()
         self.requestSchema = RequestSchemas()
