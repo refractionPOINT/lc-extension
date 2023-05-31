@@ -87,7 +87,7 @@ type EventName = string
 // For internal use only.
 type SensorUpdate struct {
 	SID         string                 `json:"sid" msgpack:"sid"`
-	CollectorID string                 `json:"col_id" msgpack:"col_id"`
+	CollectorID uint32                 `json:"collector_id" msgpack:"collector_id"`
 	UpdateTS    uint64                 `json:"update_ts" msgpack:"update_ts"`
 	Data        map[string]interface{} `json:"data" msgpack:"data"`
 }
