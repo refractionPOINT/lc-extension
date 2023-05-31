@@ -60,7 +60,7 @@ class Extension(object):
             data = data.encode()
         if isinstance(signature, bytes):
             signature = signature.decode()
-        expected = hmac.new(self._originSecret, msg = data, digestmod = hashlib.sha256).hexdigest()
+        expected = hmac.new(self._secret, msg = data, digestmod = hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
     def _extRequestHandler(self, data):
