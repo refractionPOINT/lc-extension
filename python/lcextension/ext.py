@@ -27,7 +27,7 @@ class Extension(object):
             sig = flask.request.headers.get('lc-ext-sig', None)
             if not sig:
                 return {}, 200
-            data = flask.request.data
+            data = flask.request.get_data()
             if flask.request.headers.get('Content-Type', '') == 'gzip':
                 data = gzip.decompress(data)
             if not self._verifyOrigin(data, sig):
