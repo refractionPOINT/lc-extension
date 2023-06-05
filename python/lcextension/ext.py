@@ -26,7 +26,7 @@ class Extension(object):
         def _handler():
             sig = flask.request.headers.get('lc-ext-sig', None)
             if not sig:
-                return {}, 200
+                return json.dumps({}), 200
             data = flask.request.get_data()
             if flask.request.headers.get('Content-Encoding', '') == 'gzip':
                 data = gzip.decompress(data)
@@ -45,8 +45,8 @@ class Extension(object):
                 status = 200
                 if resp.error:
                     status = 500
-                return resp.toJSON(), status
-            return {"error": "invalid request"}, 400
+                return json.dumps(resp.toJSON()), status
+            return json.dumps(Response(error = "invalid request").toJSON()), 400
 
         self.init()
 
