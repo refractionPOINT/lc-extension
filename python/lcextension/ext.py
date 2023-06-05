@@ -7,6 +7,7 @@ import hashlib
 import time
 import sys
 import threading
+import os
 from .messages import *
 from .schema import *
 
@@ -20,6 +21,9 @@ class Extension(object):
         self.requestSchema = RequestSchemas()
         self.requiredEvents = []
 
+        self._isLogRequest = os.environ.get("LOG_REQUEST", "") != ""
+        self._isLogResponse = os.environ.get("LOG_RESPONSE", "") != ""
+
         self._app = flask.Flask(self._name)
 
         @self._app.post('/')
@@ -28,10 +32,13 @@ class Extension(object):
             if not sig:
                 return json.dumps({}), 200
             data = flask.request.get_data()
+            if self._isLogRequest:
+                self.log(f"request: {data}")
             if flask.request.headers.get('Content-Encoding', '') == 'gzip':
                 data = gzip.decompress(data)
             if not self._verifyOrigin(data, sig):
-                return {"error": "invalid signature"}, 401
+                resp = json.dumps(Response(error = "invalid signature").toJSON())
+                return resp, 401
             try:
                 data = json.loads(data)
             except:
@@ -45,8 +52,14 @@ class Extension(object):
                 status = 200
                 if resp.error:
                     status = 500
-                return json.dumps(resp.toJSON()), status
-            return json.dumps(Response(error = "invalid request").toJSON()), 400
+                resp = json.dumps(resp.toJSON())
+                if self._isLogResponse:
+                    self.log(f"response: {resp}")
+                return resp, status
+            resp = json.dumps(Response(error = "invalid request").toJSON())
+            if self._isLogResponse:
+                self.log(f"response: {resp}")
+            return resp, 400
 
         self.init()
 
