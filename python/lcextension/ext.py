@@ -32,10 +32,10 @@ class Extension(object):
             if not sig:
                 return json.dumps({}), 200
             data = flask.request.get_data()
-            if self._isLogRequest:
-                self.log(f"request: {data}")
             if flask.request.headers.get('Content-Encoding', '') == 'gzip':
                 data = gzip.decompress(data)
+            if self._isLogRequest:
+                self.log(f"request: {data}")
             if not self._verifyOrigin(data, sig):
                 resp = json.dumps(Response(error = "invalid signature").toJSON())
                 return resp, 401
