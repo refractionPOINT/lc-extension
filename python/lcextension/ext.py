@@ -92,11 +92,11 @@ class Extension(object):
             self.handleError(msg.msg_error_report.oid, msg.msg_error_report.error)
             return Response()
         if msg.msg_schema_request is not None:
-            return {
+            return Response(data = {
                 'config_schema': self.configSchema.serialize(),
                 'request_schema': self.requestSchema.serialize(),
                 'required_events': self.requiredEvents,
-            }
+            })
         return Response(error = 'no data in request')
     
     def _handleEvent(self, sdk, data, conf):
