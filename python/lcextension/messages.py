@@ -92,7 +92,7 @@ class Response(object):
         }
         if self.error:
             ret['error'] = self.error
-        if self.data:
+        if not self.data:
             ret['data'] = {}
         else:
             ret['data'] = self.data

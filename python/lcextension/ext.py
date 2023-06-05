@@ -34,6 +34,8 @@ class Extension(object):
             data = flask.request.get_data()
             if flask.request.headers.get('Content-Encoding', '') == 'gzip':
                 data = gzip.decompress(data)
+            if self._isLogRequest:
+                self.log(f"request: {data}")
             if not self._verifyOrigin(data, sig):
                 resp = json.dumps(Response(error = "invalid signature").toJSON())
                 return resp, 401
@@ -76,8 +78,6 @@ class Extension(object):
 
     def _extRequestHandler(self, data):
         msg = Message(data)
-        if self._isLogRequest:
-            self.log(f"request: {msg}")
         if msg.msg_heart_beat is not None:
             return Response()
         if msg.msg_config_validation is not None:
