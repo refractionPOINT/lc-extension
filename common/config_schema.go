@@ -11,9 +11,11 @@ type SchemaObject struct {
 	// Extended definition for Response elements.
 	// Not available at the root of the Response.
 	// -------------------------------------------
-	RenderType  string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
-	KeyDataType SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
-	KeyName     string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
+	RenderType      string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
+	KeyDataType     SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
+	KeyName         string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
+	KeyLabel        string         `json:"key_label,omitempty" msgpack:"key_name,omitempty"`
+	KeyDisplayIndex int            `json:"key_display_index,omitempty" msgpack:"display_index,omitempty"`
 
 	// Extended definition for Interactive elements
 	// like Configs and Requests.

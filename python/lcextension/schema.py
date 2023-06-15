@@ -3,6 +3,8 @@ class SchemaObject(object):
         self.Fields = {} # {} of Field name to SchemaElement
         self.RenderType = None
         self.KeyDataType = None # SchemaDataTypes
+        self.KeyLabel = None # SchemaDataTypes
+        self.KeyDisplayIndex = None # SchemaDataTypes
         self.KeyName = None
         self.Requirements = [] # [] of [] of Field names
         for k, v in kwargs.items():
@@ -16,6 +18,8 @@ class SchemaObject(object):
             'render_type' : self.RenderType,
             'key_data_type' : self.KeyDataType,
             'key_name' : self.KeyName,
+            'key_label' : self.KeyLabel,
+            'key_display_index' : self.KeyDisplayIndex,
             'requirements' : self.Requirements,
         }
 
