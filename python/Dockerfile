@@ -2,7 +2,7 @@ FROM debian:bookworm-slim
 
 # Update / install python
 RUN apt update && apt -y upgrade
-RUN apt install -y python3.10 python3-setuptools python3-pip --fix-missing
+RUN apt install -y python3.11 python3-setuptools python3-pip --fix-missing
 
 # Install base library.
 ADD . /lc-extension
