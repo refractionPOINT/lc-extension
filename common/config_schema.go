@@ -14,13 +14,8 @@ type SchemaObject struct {
 	RenderType      string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
 	KeyDataType     SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
 	KeyName         string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
-<<<<<<< HEAD
 	KeyLabel        string         `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
 	KeyDisplayIndex int            `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
-=======
-	KeyLabel        string         `json:"key_label,omitempty" msgpack:"key_name,omitempty"`
-	KeyDisplayIndex int            `json:"key_display_index,omitempty" msgpack:"display_index,omitempty"`
->>>>>>> e7ec2a24bc9904b83339998bb702d04238d65424
 
 	// Extended definition for Interactive elements
 	// like Configs and Requests.
