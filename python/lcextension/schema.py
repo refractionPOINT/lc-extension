@@ -100,3 +100,5 @@ class SchemaDataTypes(object):
     JSON = "json"
     YAML = "yaml"
     Object = "object"
+    YaraRule = "yara_rule"
+    YaraRuleName = "yara_rule_name"
