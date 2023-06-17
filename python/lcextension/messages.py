@@ -31,10 +31,13 @@ class Message(object):
         if d is not None:
             self.msg_event = MessageEvent(d)
 
+    def __str__(self):
+        return f"Message(version={self.version},idempotent_key={self.idempotent_key},msg_heart_beat={self.msg_heart_beat},msg_error_report={self.msg_error_report},msg_config_validation={self.msg_config_validation},msg_schema_request={self.msg_schema_request},msg_request={self.msg_request},msg_event={self.msg_event})"
+
 class OrgAccessData(object):
-    def __init__(self, oid, jwt):
-        self.oid = oid
-        self.jwt = jwt
+    def __init__(self, orgData):
+        self.oid = orgData.get( 'oid', None )
+        self.jwt = orgData.get( 'jwt', None )
 
 class MessageHeartBeat(object):
     def __init__(self, data):
@@ -89,7 +92,7 @@ class Response(object):
         }
         if self.error:
             ret['error'] = self.error
-        if self.data:
+        if not self.data:
             ret['data'] = {}
         else:
             ret['data'] = self.data

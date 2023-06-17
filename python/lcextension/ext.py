@@ -7,6 +7,7 @@ import hashlib
 import time
 import sys
 import threading
+import os
 from .messages import *
 from .schema import *
 
@@ -20,18 +21,24 @@ class Extension(object):
         self.requestSchema = RequestSchemas()
         self.requiredEvents = []
 
+        self._isLogRequest = os.environ.get("LOG_REQUEST", "") != ""
+        self._isLogResponse = os.environ.get("LOG_RESPONSE", "") != ""
+
         self._app = flask.Flask(self._name)
 
         @self._app.post('/')
         def _handler():
             sig = flask.request.headers.get('lc-ext-sig', None)
             if not sig:
-                return {}, 200
-            data = flask.request.data
-            if flask.request.headers.get('Content-Type', '') == 'gzip':
+                return json.dumps({}), 200
+            data = flask.request.get_data()
+            if flask.request.headers.get('Content-Encoding', '') == 'gzip':
                 data = gzip.decompress(data)
+            if self._isLogRequest:
+                self.log(f"request: {data}")
             if not self._verifyOrigin(data, sig):
-                return {"error": "invalid signature"}, 401
+                resp = json.dumps(Response(error = "invalid signature").toJSON())
+                return resp, 401
             try:
                 data = json.loads(data)
             except:
@@ -45,8 +52,14 @@ class Extension(object):
                 status = 200
                 if resp.error:
                     status = 500
-                return resp.toJSON(), status
-            return {"error": "invalid request"}, 400
+                resp = json.dumps(resp.toJSON())
+                if self._isLogResponse:
+                    self.log(f"response: {resp}")
+                return resp, status
+            resp = json.dumps(Response(error = "invalid request").toJSON())
+            if self._isLogResponse:
+                self.log(f"response: {resp}")
+            return resp, 400
 
         self.init()
 
@@ -60,7 +73,7 @@ class Extension(object):
             data = data.encode()
         if isinstance(signature, bytes):
             signature = signature.decode()
-        expected = hmac.new(self._originSecret, msg = data, digestmod = hashlib.sha256).hexdigest()
+        expected = hmac.new(self._secret.encode(), msg = data, digestmod = hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
     def _extRequestHandler(self, data):
@@ -92,11 +105,11 @@ class Extension(object):
             self.handleError(msg.msg_error_report.oid, msg.msg_error_report.error)
             return Response()
         if msg.msg_schema_request is not None:
-            return {
+            return Response(data = {
                 'config_schema': self.configSchema.serialize(),
                 'request_schema': self.requestSchema.serialize(),
                 'required_events': self.requiredEvents,
-            }
+            })
         return Response(error = 'no data in request')
     
     def _handleEvent(self, sdk, data, conf):
