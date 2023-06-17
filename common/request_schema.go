@@ -47,6 +47,8 @@ var SchemaDataTypes = struct {
 	YAML string
 
 	Object string
+
+	YaraRule string
 }{
 	String:  "string",
 	Integer: "integer",
@@ -71,6 +73,8 @@ var SchemaDataTypes = struct {
 	YAML: "yaml",
 
 	Object: "object",
+
+	YaraRule: "yara_rule",
 }
 
 // Examples of full schemas for something like a Yara Scanning Extension:
