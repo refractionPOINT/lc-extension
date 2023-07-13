@@ -33,9 +33,16 @@ type ConfigValidationMessage struct {
 
 type ConfigValidationResponse struct{}
 
+// View configuration for the UI display and optional tabs
+type View struct {
+	LayoutType      string   `json:"layout_type" msgpack:"layout_type"`
+	DefaultRequests []string `json:"default_requests" msgpack:"default_requests"`
+}
+
 // A request to get the schema required by the Extension for its configuration and requests.
 type SchemaRequestMessage struct{}
 type SchemaRequestResponse struct {
+	Views          []View         `json:"views,omitempty" msgpack:"views,omitempty"`
 	Config         SchemaObject   `json:"config_schema" msgpack:"config_schema"`
 	Request        RequestSchemas `json:"request_schema" msgpack:"request_schema"`
 	RequiredEvents []EventName    `json:"required_events" msgpack:"required_events"`
