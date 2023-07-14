@@ -35,6 +35,7 @@ type ConfigValidationResponse struct{}
 
 // View configuration for the UI display and optional tabs
 type View struct {
+	Name            string   `json:"name" msgpack:"name"`
 	LayoutType      string   `json:"layout_type" msgpack:"layout_type"`
 	DefaultRequests []string `json:"default_requests" msgpack:"default_requests"`
 }
