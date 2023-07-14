@@ -63,7 +63,6 @@ class RequestSchemas(object):
 
 class RequestSchema(object):
     def __init__(self, **kwargs):
-        self.IsDefaultRequest = False
         self.IsUserFacing = True
         self.ShortDescription = ""
         self.LongDescription = ""
