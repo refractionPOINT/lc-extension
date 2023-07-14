@@ -23,6 +23,7 @@ type Extension struct {
 	SecretKey     string
 	Callbacks     ExtensionCallbacks
 
+	ViewsSchema    []common.View
 	ConfigSchema   common.SchemaObject
 	RequestSchema  common.RequestSchemas
 	RequiredEvents []common.EventName
@@ -156,6 +157,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if message.SchemaRequest != nil {
 		response.Data = &common.SchemaRequestResponse{
+			Views:          e.ViewsSchema,
 			Config:         e.ConfigSchema,
 			Request:        e.RequestSchema,
 			RequiredEvents: e.RequiredEvents,
