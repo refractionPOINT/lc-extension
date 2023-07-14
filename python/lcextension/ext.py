@@ -106,6 +106,7 @@ class Extension(object):
             return Response()
         if msg.msg_schema_request is not None:
             return Response(data = {
+                'views': self.views,
                 'config_schema': self.configSchema.serialize(),
                 'request_schema': self.requestSchema.serialize(),
                 'required_events': self.requiredEvents,
