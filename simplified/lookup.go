@@ -93,6 +93,12 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 					return common.Response{Error: err.Error()}
 				}
 
+				// We also push the initial update.
+				resp := l.onUpdate(ctx, org, nil, nil, "")
+				if resp.Error != "" {
+					return resp
+				}
+
 				return common.Response{}
 			},
 			// An Org unsubscribed.
@@ -108,6 +114,36 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to remove D&R rule: %s", err.Error()))
 					return common.Response{Error: err.Error()}
+				}
+
+				// We also remove the lookups.
+				lookups, err := h.ListMtd(limacharlie.HiveArgs{
+					HiveName:     "lookup",
+					PartitionKey: org.GetOID(),
+				})
+				if err != nil {
+					l.Logger.Error(fmt.Sprintf("failed to list lookups: %s", err.Error()))
+					return common.Response{Error: err.Error()}
+				}
+				for luName, luData := range lookups {
+					isRemove := false
+					for _, t := range luData.UsrMtd.Tags {
+						if t == l.tag {
+							break
+						}
+						isRemove = true
+					}
+					if !isRemove {
+						continue
+					}
+					if _, err := h.Remove(limacharlie.HiveArgs{
+						HiveName:     "lookup",
+						PartitionKey: org.GetOID(),
+						Key:          luName,
+					}); err != nil {
+						l.Logger.Error(fmt.Sprintf("failed to remove lookup %s: %s", luName, err.Error()))
+						return common.Response{Error: err.Error()}
+					}
 				}
 
 				return common.Response{}
