@@ -73,8 +73,21 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 					HiveName:     updateRuleHive,
 					PartitionKey: org.GetOID(),
 					Key:          l.ruleName,
-					Data:         limacharlie.Dict{},
-					Tags:         []string{l.tag},
+					Data: limacharlie.Dict{
+						"detect": limacharlie.Dict{
+							"target": "schedule",
+							"event":  "12h_per_org",
+							"op":     "exists",
+							"path":   "event",
+						},
+						"respond": []limacharlie.Dict{{
+							"action":            "extension request",
+							"extension name":    l.Name,
+							"extension action":  "update_lookup",
+							"extension request": limacharlie.Dict{},
+						}},
+					},
+					Tags: []string{l.tag},
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to add D&R rule: %s", err.Error()))
 					return common.Response{Error: err.Error()}
