@@ -149,6 +149,9 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				return common.Response{}
 			},
 		},
+		ErrorHandler: func(errMsg *common.ErrorReportMessage) {
+			l.Logger.Error(fmt.Sprintf("error from limacharlie: %s", errMsg.Error))
+		},
 	}
 	// Start processing.
 	if err := x.Init(); err != nil {
