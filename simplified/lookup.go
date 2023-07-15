@@ -34,8 +34,8 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	l.ruleName = fmt.Sprintf("ext-%s-update", l.Name)
 
 	x := &core.Extension{
-		ExtensionName: "basic-extension",
-		SecretKey:     "1234", // Shared secret with LimaCharlie.
+		ExtensionName: l.Name,
+		SecretKey:     l.SecretKey,
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{
 			Fields:       map[common.SchemaKey]common.SchemaElement{},
