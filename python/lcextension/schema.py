@@ -84,6 +84,19 @@ class RequestSchema(object):
             'response' : None if self.ResponseDefinition is None else self.ResponseDefinition.serialize(),
         }
 
+class SchemaView(object):
+    def __init__(self, **kwargs):
+        self.Name = ""
+        self.LayoutType = None
+        self.DefaultRequests = None # [] of Request names
+
+    def serialize(self):
+        return {
+            'name' :self.Name,
+            'layout_type' : self.LayoutType,
+            'default_requests' : self.DefaultRequests,
+        }
+
 class SchemaDataTypes(object):
     String = "string"
     Integer = "integer"

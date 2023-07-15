@@ -17,6 +17,7 @@ class Extension(object):
         self._name = name
         self._secret = secret
         self._lock = threading.Lock()
+        self.viewSchemas = []
         self.configSchema = SchemaObject()
         self.requestSchema = RequestSchemas()
         self.requiredEvents = []
@@ -106,7 +107,7 @@ class Extension(object):
             return Response()
         if msg.msg_schema_request is not None:
             return Response(data = {
-                'views': self.views,
+                'views': [v.serialize() for v in self.viewSchemas],
                 'config_schema': self.configSchema.serialize(),
                 'request_schema': self.requestSchema.serialize(),
                 'required_events': self.requiredEvents,
