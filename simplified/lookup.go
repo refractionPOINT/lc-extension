@@ -187,8 +187,10 @@ func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organiz
 				HiveName:     "lookup",
 				PartitionKey: org.GetOID(),
 				Key:          luName,
-				Data:         d,
-				Tags:         []string{l.tag},
+				Data: limacharlie.Dict{
+					"lookup_data": d,
+				},
+				Tags: []string{l.tag},
 			}); err != nil {
 				l.Logger.Error(fmt.Sprintf("failed to update lookup %s: %s", luName, err.Error()))
 				return
