@@ -2,7 +2,7 @@ module github.com/refractionPOINT/lc-extension
 
 go 1.19
 
-require github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230701040705-723067285266
+require github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20230716000346-80ef20123354
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -12,6 +12,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
-	golang.org/x/sys v0.9.0 // indirect
+	golang.org/x/sys v0.10.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

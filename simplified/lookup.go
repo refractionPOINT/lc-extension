@@ -177,7 +177,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organiz
 			defer wg.Done()
 			// Convert the interface to a Dict.
 			d := limacharlie.Dict{}
-			if err := d.UnMarshalToStruct(luData); err != nil {
+			if _, err := d.ImportFromStruct(luData); err != nil {
 				l.Logger.Error(fmt.Sprintf("failed to unmarshal lookup %s: %s", luName, err.Error()))
 				return
 			}
