@@ -129,9 +129,9 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 					isRemove := false
 					for _, t := range luData.UsrMtd.Tags {
 						if t == l.tag {
+							isRemove = true
 							break
 						}
-						isRemove = true
 					}
 					if !isRemove {
 						continue
