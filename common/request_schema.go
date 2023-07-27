@@ -18,7 +18,7 @@ type StatusMessages struct {
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-	Label                string         `json:"label,omitempty" msgpack:"label,omitempty"`
+	Label                Label          `json:"label,omitempty" msgpack:"label,omitempty"`
 	IsUserFacing         bool           `json:"is_user_facing" msgpack:"is_user_facing"`       // Is this Action expected to be performed by a human, or is it for automation.
 	ShortDescription     string         `json:"short_description" msgpack:"short_description"` // Short description of what this Action does.
 	LongDescription      string         `json:"long_description" msgpack:"long_description"`   // Longer version of the Short Description.
