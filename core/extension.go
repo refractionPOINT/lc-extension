@@ -185,13 +185,16 @@ func verifyOrigin(data []byte, sig string, secretKey []byte) bool {
 	return hmac.Equal(jsonCompatSig, []byte(sig))
 }
 
-func respond(w http.ResponseWriter, status int, data interface{}) {
+func respond(w http.ResponseWriter, status int, data interface{}) error {
 	w.WriteHeader(status)
 	if data == nil {
-		return
+		return nil
 	}
 	j := json.NewEncoder(w)
-	j.Encode(data)
+	if err := j.Encode(data); err != nil {
+		panic(fmt.Sprintf("failed to encode response: %v", err))
+	}
+	return nil
 }
 
 func (e *Extension) generateSDK(oad common.OrgAccessData) (*limacharlie.Organization, error) {
