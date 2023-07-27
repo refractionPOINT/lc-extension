@@ -9,15 +9,23 @@ type RequestSchemas = map[RequestAction]RequestSchema
 // A human friendly label for something.
 type Label = string
 
+// messages for response status copy
+type StatusMessages struct {
+	InProgressMessage string `json:"in_progress,omitempty" msgpack:"in_progress,omitempty"`
+	SuccessMessage    string `json:"success,omitempty" msgpack:"success,omitempty"`
+	ErrorMessage      string `json:"error,omitempty" msgpack:"error,omitempty"`
+}
+
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-	Label                string        `json:"label" msgpack:"label"`
-	IsUserFacing         bool          `json:"is_user_facing" msgpack:"is_user_facing"`       // Is this Action expected to be performed by a human, or is it for automation.
-	ShortDescription     string        `json:"short_description" msgpack:"short_description"` // Short description of what this Action does.
-	LongDescription      string        `json:"long_description" msgpack:"long_description"`   // Longer version of the Short Description.
-	IsImpersonated       bool          `json:"is_impersonated" msgpack:"is_impersonated"`     // If true, this action requires a JWT token from a user that it will use to impersonate.
-	ParameterDefinitions SchemaObject  `json:"parameters" msgpack:"parameters"`               // List of Parameter Names and their definition.
-	ResponseDefinition   *SchemaObject `json:"response" msgpack:"response"`                   // Schema of the expected Response.
+	Label                string         `json:"label,omitempty" msgpack:"label,omitempty"`
+	IsUserFacing         bool           `json:"is_user_facing" msgpack:"is_user_facing"`       // Is this Action expected to be performed by a human, or is it for automation.
+	ShortDescription     string         `json:"short_description" msgpack:"short_description"` // Short description of what this Action does.
+	LongDescription      string         `json:"long_description" msgpack:"long_description"`   // Longer version of the Short Description.
+	Messages             StatusMessages `json:"messages,omitempty" msgpack:"messages,omitempty"`
+	IsImpersonated       bool           `json:"is_impersonated" msgpack:"is_impersonated"` // If true, this action requires a JWT token from a user that it will use to impersonate.
+	ParameterDefinitions SchemaObject   `json:"parameters" msgpack:"parameters"`           // List of Parameter Names and their definition.
+	ResponseDefinition   *SchemaObject  `json:"response" msgpack:"response"`               // Schema of the expected Response.
 }
 
 // Strongly typed list of Parameter Data Types.
