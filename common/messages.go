@@ -38,7 +38,7 @@ type View struct {
 	Name            string   `json:"name" msgpack:"name"`
 	LayoutType      string   `json:"layout_type" msgpack:"layout_type"`
 	DefaultRequests []string `json:"default_requests" msgpack:"default_requests"`
-	ShowConfig      bool     `json:"show_config" msgpack:"show_config"`
+	ShowConfig      bool     `json:"show_config,omitempty" msgpack:"show_config,omitempty"`
 }
 
 // A request to get the schema required by the Extension for its configuration and requests.
