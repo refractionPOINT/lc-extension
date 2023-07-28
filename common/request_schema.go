@@ -18,7 +18,6 @@ type StatusMessages struct {
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-<<<<<<< HEAD
 	IsDefaultRequest     bool           `json:"is_default,omitempty" msgpack:"is_default,omitempty"` // Is the default Request when displaying the state of the Extension.
 	Label                Label          `json:"label,omitempty" msgpack:"label,omitempty"`           // (optional) Human friendly name for the request
 	IsUserFacing         bool           `json:"is_user_facing" msgpack:"is_user_facing"`             // Is this Action expected to be performed by a human, or is it for automation.
@@ -28,16 +27,6 @@ type RequestSchema struct {
 	IsImpersonated       bool           `json:"is_impersonated" msgpack:"is_impersonated"`           // If true, this action requires a JWT token from a user that it will use to impersonate.
 	ParameterDefinitions SchemaObject   `json:"parameters" msgpack:"parameters"`                     // List of Parameter Names and their definition.
 	ResponseDefinition   *SchemaObject  `json:"response" msgpack:"response"`                         // Schema of the expected Response.
-=======
-	Label                Label          `json:"label,omitempty" msgpack:"label,omitempty"`       // (optional) Human friendly name for the request
-	IsUserFacing         bool           `json:"is_user_facing" msgpack:"is_user_facing"`         // Is this Action expected to be performed by a human, or is it for automation.
-	ShortDescription     string         `json:"short_description" msgpack:"short_description"`   // Short description of what this Action does.
-	LongDescription      string         `json:"long_description" msgpack:"long_description"`     // Longer version of the Short Description.
-	Messages             StatusMessages `json:"messages,omitempty" msgpack:"messages,omitempty"` // (optional) Customizable text to inform the user
-	IsImpersonated       bool           `json:"is_impersonated" msgpack:"is_impersonated"`       // If true, this action requires a JWT token from a user that it will use to impersonate.
-	ParameterDefinitions SchemaObject   `json:"parameters" msgpack:"parameters"`                 // List of Parameter Names and their definition.
-	ResponseDefinition   *SchemaObject  `json:"response" msgpack:"response"`                     // Schema of the expected Response.
->>>>>>> 24663a25624ec58b2a11290580b2c8e60b490b93
 }
 
 // Strongly typed list of Parameter Data Types.
