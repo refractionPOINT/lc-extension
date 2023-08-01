@@ -88,7 +88,7 @@ type Response struct {
 	Data              interface{}           `json:"data,omitempty" msgpack:"data,omitempty"`
 	SensorStateChange *SensorUpdate         `json:"ssc,omitempty" msgpack:"ssc,omitempty"` // For internal use only.
 	Continuations     []ContinuationRequest `json:"continuations,omitempty" msgpack:"continuations,omitempty"`
-	Metrics           []Metric              `json:"metrics,omitempty" msgpack:"metrics,omitempty"`
+	Metrics           *MetricReport         `json:"metrics,omitempty" msgpack:"metrics,omitempty"`
 }
 
 type EventName = string
