@@ -82,9 +82,10 @@ class MessageSchemaRequest(object):
         pass
 
 class Response(object):
-    def __init__(self, error = None, data = None):
+    def __init__(self, error = None, data = None, metrics = None):
         self.error = error
         self.data = data
+        self.metrics = metrics
     
     def toJSON(self):
         ret = {
@@ -96,4 +97,6 @@ class Response(object):
             ret['data'] = {}
         else:
             ret['data'] = self.data
+        if self.metrics:
+            ret['metrics'] = self.metrics.serialize()
         return ret
