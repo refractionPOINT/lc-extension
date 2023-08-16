@@ -69,6 +69,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 
 				// We set up a D&R rule for recurring update.
 				h := limacharlie.NewHiveClient(org)
+				trueValue := true
 				if _, err := h.Add(limacharlie.HiveArgs{
 					HiveName:     updateRuleHive,
 					PartitionKey: org.GetOID(),
@@ -87,7 +88,8 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 							"extension request": limacharlie.Dict{},
 						}},
 					},
-					Tags: []string{l.tag},
+					Tags:    []string{l.tag},
+					Enabled: &trueValue,
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to add D&R rule: %s", err.Error()))
 					return common.Response{Error: err.Error()}
