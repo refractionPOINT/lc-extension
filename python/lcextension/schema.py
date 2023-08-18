@@ -1,12 +1,15 @@
 class SchemaObject(object):
     def __init__(self, **kwargs):
         self.Fields = {} # {} of Field name to SchemaElement
+        self.Key = None
+        self.Requirements = [] # [] of [] of Field names
+
+        # legacy
         self.RenderType = None
         self.KeyDataType = None # SchemaDataTypes
         self.KeyLabel = None # SchemaDataTypes
         self.KeyDisplayIndex = None # SchemaDataTypes
         self.KeyName = None
-        self.Requirements = [] # [] of [] of Field names
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
@@ -15,12 +18,15 @@ class SchemaObject(object):
     def serialize(self):
         return {
             'fields' : {n: f.serialize() for n, f in self.Fields.items()},
+            'key': self.Key
+            'requirements' : self.Requirements,
+
+            # legacy
             'render_type' : self.RenderType,
             'key_data_type' : self.KeyDataType,
             'key_name' : self.KeyName,
             'key_label' : self.KeyLabel,
             'key_display_index' : self.KeyDisplayIndex,
-            'requirements' : self.Requirements,
         }
 
 class SchemaElement(object):
@@ -109,6 +115,7 @@ class SchemaDataTypes(object):
     Platform = "platform"
     Architecture = "architecture"
     SensorSelector = "sensor_selector"
+    Event = 'event'
     Tag = "tag"
     Duration = "duration" # milliseconds
     Time = "time" # milliseconds since epoch
@@ -116,6 +123,7 @@ class SchemaDataTypes(object):
     Domain = "domain"
     JSON = "json"
     YAML = "yaml"
-    Object = "object"
     YaraRule = "yara_rule"
     YaraRuleName = "yara_rule_name"
+    Object = "object"
+    Record = "record"
