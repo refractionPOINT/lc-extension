@@ -11,6 +11,8 @@ type SchemaObject struct {
 	// If this element is a type "Record" object, field "key" defines the keys
 	// whereas "fields" are the objects belonging to the keys
 	Key SchemaElement `json:"key,omitempty" msgpack:"key,omitempty"`
+	// what to call each element in the record/list - use for auto generated copy/labels
+	ListElementName string `json:"list_element_name,omitempty" msgpack:"list_element_name,omitempty"`
 
 	// legacy fields
 	// -------------------------------------------

@@ -2,6 +2,7 @@ class SchemaObject(object):
     def __init__(self, **kwargs):
         self.Fields = {} # {} of Field name to SchemaElement
         self.Key = None
+        self.ListElementName = None
         self.Requirements = [] # [] of [] of Field names
 
         # legacy
@@ -18,6 +19,7 @@ class SchemaObject(object):
     def serialize(self):
         return {
             'fields' : {n: f.serialize() for n, f in self.Fields.items()},
+            'list_element_name': self.ListElementName
             'key': self.Key
             'requirements' : self.Requirements,
 
