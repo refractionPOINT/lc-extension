@@ -43,7 +43,7 @@ var SchemaDataTypes = struct {
 	Platform       string
 	Architecture   string
 	SensorSelector string
-	Event          string
+	EventName      string
 
 	Tag string
 
@@ -72,7 +72,7 @@ var SchemaDataTypes = struct {
 	Platform:       "platform",
 	Architecture:   "architecture",
 	SensorSelector: "sensor_selector",
-	Event:          "event",
+	EventName:      "event_name",
 
 	Tag: "tag",
 

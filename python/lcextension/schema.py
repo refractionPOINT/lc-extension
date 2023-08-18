@@ -117,7 +117,7 @@ class SchemaDataTypes(object):
     Platform = "platform"
     Architecture = "architecture"
     SensorSelector = "sensor_selector"
-    Event = 'event'
+    EventName = 'event_name'
     Tag = "tag"
     Duration = "duration" # milliseconds
     Time = "time" # milliseconds since epoch
