@@ -43,6 +43,7 @@ var SchemaDataTypes = struct {
 	Platform       string
 	Architecture   string
 	SensorSelector string
+	EventName      string
 
 	Tag string
 
@@ -55,10 +56,11 @@ var SchemaDataTypes = struct {
 	JSON string
 	YAML string
 
-	Object string
-
 	YaraRule     string
 	YaraRuleName string
+
+	Object string
+	Record string
 }{
 	String:  "string",
 	Integer: "integer",
@@ -70,6 +72,7 @@ var SchemaDataTypes = struct {
 	Platform:       "platform",
 	Architecture:   "architecture",
 	SensorSelector: "sensor_selector",
+	EventName:      "event_name",
 
 	Tag: "tag",
 
@@ -82,10 +85,11 @@ var SchemaDataTypes = struct {
 	JSON: "json",
 	YAML: "yaml",
 
-	Object: "object",
-
 	YaraRule:     "yara_rule",
 	YaraRuleName: "yara_rule_name",
+
+	Object: "object",
+	Record: "record",
 }
 
 // Examples of full schemas for something like a Yara Scanning Extension:
