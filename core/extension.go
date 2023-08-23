@@ -31,7 +31,7 @@ type Extension struct {
 
 type ExtensionResponse struct {
 	Error error
-	Data  Dict
+	Data  limacharlie.Dict
 }
 
 type ExtensionCallbacks struct {
