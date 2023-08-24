@@ -20,6 +20,7 @@ class SchemaObject(object):
         return {
             'fields' : {n: f.serialize() for n, f in self.Fields.items()},
             'list_element_name': self.ListElementName
+            'element_desc': self.ElementDescription
             'key': self.Key
             'requirements' : self.Requirements,
 
