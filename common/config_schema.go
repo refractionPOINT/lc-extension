@@ -10,18 +10,18 @@ type SchemaObject struct {
 
 	// If this element is a type "Record" object, field "key" defines the keys
 	// whereas "fields" are the objects belonging to the keys
-	Key SchemaElement `json:"key,omitempty" msgpack:"key,omitempty"`
+	Key RecordKey `json:"key,omitempty" msgpack:"key,omitempty"`
 	// what to call each element in the record/list - use for auto generated copy/labels
 	ListElementName    string `json:"list_element_name,omitempty" msgpack:"list_element_name,omitempty"`
 	ElementDescription string `json:"element_desc,omitempty" msgpack:"element_desc,omitempty"`
 
 	// legacy fields
 	// -------------------------------------------
-	RenderType      string    `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
-	KeyDataType     RecordKey `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
-	KeyName         string    `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
-	KeyLabel        string    `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
-	KeyDisplayIndex int       `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
+	RenderType      string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
+	KeyDataType     SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
+	KeyName         string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
+	KeyLabel        string         `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
+	KeyDisplayIndex int            `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
 
 	// Extended definition for Interactive elements
 	// like Configs and Requests.
