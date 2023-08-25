@@ -54,7 +54,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	}
 
 	x.Callbacks = core.ExtensionCallbacks{
-		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config map[string]interface{}) common.Response {
+		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config limacharlie.Dict) common.Response {
 			return common.Response{}
 		},
 		RequestHandlers: map[common.ActionName]core.RequestCallback{
@@ -64,7 +64,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
-			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}, idempotentKey string) common.Response {
+			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
 				l.Logger.Info(fmt.Sprintf("subscribe to %s", org.GetOID()))
 
 				// We set up a D&R rule for recurring update.
@@ -104,7 +104,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				return common.Response{}
 			},
 			// An Org unsubscribed.
-			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}, idempotentKey string) common.Response {
+			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
 				// Remove the D&R rule we set up.
@@ -163,7 +163,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
-func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf map[string]interface{}, idempotentKey string) common.Response {
+func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
 	h := limacharlie.NewHiveClient(org)
 
 	wg := sync.WaitGroup{}

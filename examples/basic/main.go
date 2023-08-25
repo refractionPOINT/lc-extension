@@ -67,7 +67,7 @@ func init() {
 	// Callbacks receiving webhooks from LimaCharlie.
 	Extension.Callbacks = core.ExtensionCallbacks{
 		// When a user changes a config for this Extension, you will be asked to validate it.
-		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config map[string]interface{}) common.Response {
+		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config limacharlie.Dict) common.Response {
 			Extension.Info(fmt.Sprintf("validate config from %s", org.GetOID()))
 			return common.Response{} // No error, so success.
 		},
@@ -80,12 +80,12 @@ func init() {
 		// Events occuring in LimaCharlie that we need to be made aware of.
 		EventHandlers: map[common.EventName]core.EventCallback{
 			// An Org subscribed.
-			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}, idempotentKey string) common.Response {
+			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
 				Extension.Info(fmt.Sprintf("subscribe to %s", org.GetOID()))
 				return common.Response{}
 			},
 			// An Org unsubscribed.
-			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf map[string]interface{}, idempotentKey string) common.Response {
+			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
 				Extension.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 				return common.Response{}
 			},
@@ -119,7 +119,7 @@ func (e *BasicExtension) Init() error {
 	return nil
 }
 
-func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf map[string]interface{}, idempotentKey string) common.Response {
+func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
 	request := data.(*PingRequest)
 
 	return common.Response{
