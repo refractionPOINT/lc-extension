@@ -37,6 +37,7 @@ type RecordKey = struct {
 	Description  string         `json:"description" msgpack:"description"`
 	DataType     SchemaDataType `json:"data_type" msgpack:"data_type"`
 	DisplayIndex int            `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
+	PlaceHolder  string         `json:"placeholder" msgpack:"placeholder"` // Placeholder to display for this field.
 }
 
 // Valid objects require one of the following fields to be specified.
