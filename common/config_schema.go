@@ -7,21 +7,19 @@ type SchemaKey = string
 // Extension's configs, or it can be a sub object.
 type SchemaObject struct {
 	Fields map[SchemaKey]SchemaElement `json:"fields" msgpack:"fields"`
-
-	// If this element is a type "Record" object, field "key" defines the keys
-	// whereas "fields" are the objects belonging to the keys
-	Key SchemaElement `json:"key,omitempty" msgpack:"key,omitempty"`
+	// If this element is a type "Record" object, field "key" defines the keys that own "Fields"
+	Key RecordKey `json:"key,omitempty" msgpack:"key,omitempty"`
 	// what to call each element in the record/list - use for auto generated copy/labels
-	ListElementName    string `json:"list_element_name,omitempty" msgpack:"list_element_name,omitempty"`
+	ElementName        string `json:"element_name,omitempty" msgpack:"element_name,omitempty"`
 	ElementDescription string `json:"element_desc,omitempty" msgpack:"element_desc,omitempty"`
 
 	// legacy fields
 	// -------------------------------------------
-	RenderType      string    `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
-	KeyDataType     RecordKey `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
-	KeyName         string    `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
-	KeyLabel        string    `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
-	KeyDisplayIndex int       `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
+	RenderType      string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
+	KeyDataType     SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
+	KeyName         string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
+	KeyLabel        string         `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
+	KeyDisplayIndex int            `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
 
 	// Extended definition for Interactive elements
 	// like Configs and Requests.
@@ -34,10 +32,10 @@ type SchemaObject struct {
 type RecordKey = struct {
 	Name         string         `json:"name" msgpack:"name"`
 	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
-	Description  string         `json:"description" msgpack:"description"`
-	DataType     SchemaDataType `json:"data_type" msgpack:"data_type"`
+	Description  string         `json:"description,omitempty" msgpack:"description,omitempty"`
+	DataType     SchemaDataType `json:"data_type,omitempty" msgpack:"data_type,omitempty"`
 	DisplayIndex int            `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
-	PlaceHolder  string         `json:"placeholder" msgpack:"placeholder"` // Placeholder to display for this field.
+	PlaceHolder  string         `json:"placeholder,omitempty" msgpack:"placeholder,omitempty"` // Placeholder to display for this field.
 }
 
 // Valid objects require one of the following fields to be specified.
@@ -59,7 +57,7 @@ type SchemaElement struct {
 	// like Configs and Requests.
 	// -------------------------------------------
 	EnumValues  []interface{} `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
-	PlaceHolder string        `json:"placeholder" msgpack:"placeholder"`                     // Placeholder to display for this field.
+	PlaceHolder string        `json:"placeholder,omitempty" msgpack:"placeholder,omitempty"` // Placeholder to display for this field.
 
 	// Extended definition for Actionable elements
 	// like Configs and Responses.
