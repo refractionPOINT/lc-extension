@@ -17,11 +17,11 @@ type SchemaObject struct {
 
 	// legacy fields
 	// -------------------------------------------
-	RenderType      string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
-	KeyDataType     SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
-	KeyName         string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
-	KeyLabel        string         `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
-	KeyDisplayIndex int            `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
+	RenderType      string    `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
+	KeyDataType     RecordKey `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
+	KeyName         string    `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
+	KeyLabel        string    `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
+	KeyDisplayIndex int       `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
 
 	// Extended definition for Interactive elements
 	// like Configs and Requests.
@@ -29,6 +29,14 @@ type SchemaObject struct {
 	// All field sets must be satisfied.
 	// Each field is specifies fields where one and only one must be set.
 	Requirements []RequiredFields `json:"requirements" msgpack:"requirements"`
+}
+
+type RecordKey = struct {
+	Name         string         `json:"name" msgpack:"name"`
+	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
+	Description  string         `json:"description" msgpack:"description"`
+	DataType     SchemaDataType `json:"data_type" msgpack:"data_type"`
+	DisplayIndex int            `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
 }
 
 // Valid objects require one of the following fields to be specified.
