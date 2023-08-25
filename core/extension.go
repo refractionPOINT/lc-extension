@@ -35,18 +35,18 @@ type ExtensionResponse struct {
 }
 
 type ExtensionCallbacks struct {
-	ValidateConfig  func(context.Context, *limacharlie.Organization, map[string]interface{}) common.Response // Optional
-	RequestHandlers map[common.ActionName]RequestCallback                                                    // Optional
+	ValidateConfig  func(context.Context, *limacharlie.Organization, limacharlie.Dict) common.Response // Optional
+	RequestHandlers map[common.ActionName]RequestCallback                                              // Optional
 	EventHandlers   map[common.EventName]EventCallback
 	ErrorHandler    func(*common.ErrorReportMessage)
 }
 
 type RequestCallback struct {
 	RequestStruct interface{}
-	Callback      func(ctx context.Context, org *limacharlie.Organization, req interface{}, conf map[string]interface{}, idempotentKey string) common.Response
+	Callback      func(ctx context.Context, org *limacharlie.Organization, req interface{}, conf limacharlie.Dict, idempotentKey string) common.Response
 }
 
-type EventCallback = func(ctx context.Context, org *limacharlie.Organization, data map[string]interface{}, conf map[string]interface{}, idempotentKey string) common.Response
+type EventCallback = func(ctx context.Context, org *limacharlie.Organization, data limacharlie.Dict, conf limacharlie.Dict, idempotentKey string) common.Response
 
 func (e *Extension) Init() error {
 	return nil
