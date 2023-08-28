@@ -30,7 +30,7 @@ type SchemaObject struct {
 }
 
 type RecordKey = struct {
-	Name         string         `json:"name" msgpack:"name"`
+	Name         string         `json:"name,omitempty" msgpack:"name,omitempty"`
 	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
 	Description  string         `json:"description,omitempty" msgpack:"description,omitempty"`
 	DataType     SchemaDataType `json:"data_type,omitempty" msgpack:"data_type,omitempty"`
