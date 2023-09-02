@@ -41,9 +41,22 @@ type RecordKey = struct {
 // Valid objects require one of the following fields to be specified.
 type RequiredFields = []SchemaKey
 
+// for sid and platforms data_type
+type PlatformFilterType = struct {
+	Whitelist []string `json:"whitelist,omitempty" msgpack:"whitelist,omitempty"`
+	Blacklist []string `json:"blacklist,omitempty" msgpack:"blacklist,omitempty"`
+}
+
+// for number and time/date data_types
+type NumericLimitType = struct {
+	Min []string `json:"min,omitempty" msgpack:"min,omitempty"`
+	Max []string `json:"max,omitempty" msgpack:"max,omitempty"`
+}
+
 type SchemaElement struct {
 	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
 	Description  string         `json:"description" msgpack:"description"`
+	PlaceHolder  string         `json:"placeholder,omitempty" msgpack:"placeholder,omitempty"` // Placeholder to display for this field.
 	DataType     SchemaDataType `json:"data_type" msgpack:"data_type"`
 	IsList       bool           `json:"is_list,omitempty" msgpack:"is_list,omitempty"` // Is this Parameter for a single item, or a list of items?
 	DisplayIndex int            `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
@@ -54,10 +67,10 @@ type SchemaElement struct {
 	Object *SchemaObject `json:"object,omitempty" msgpack:"object,omitempty"`
 
 	// Extended definition for Interactive elements
-	// like Configs and Requests.
 	// -------------------------------------------
-	EnumValues  []interface{} `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
-	PlaceHolder string        `json:"placeholder,omitempty" msgpack:"placeholder,omitempty"` // Placeholder to display for this field.
+	EnumValues     []interface{}      `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
+	PlatformFilter PlatformFilterType `json:"platform_filter,omitempty" msgpack:"platform_filter,omitempty"`
+	Limit          PlatformFilterType `json:"limit,omitempty" msgpack:"limit,omitempty"`
 
 	// Extended definition for Actionable elements
 	// like Configs and Responses.
