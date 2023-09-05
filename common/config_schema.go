@@ -42,13 +42,12 @@ type RecordKey = struct {
 type RequiredFields = []SchemaKey
 
 // for sid and platforms data_type
-type PlatformFilterType = struct {
+type FilterType = struct {
+	// whitelist and blacklist are mutually exclusive
+	// for platforms, sid platforms, string chars
 	Whitelist []string `json:"whitelist,omitempty" msgpack:"whitelist,omitempty"`
 	Blacklist []string `json:"blacklist,omitempty" msgpack:"blacklist,omitempty"`
-}
-
-// for number and time/date data_types
-type NumericLimitType = struct {
+	// for number and time/date data_types
 	Min []string `json:"min,omitempty" msgpack:"min,omitempty"`
 	Max []string `json:"max,omitempty" msgpack:"max,omitempty"`
 }
@@ -68,9 +67,8 @@ type SchemaElement struct {
 
 	// Extended definition for Interactive elements
 	// -------------------------------------------
-	EnumValues     []interface{}      `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
-	PlatformFilter PlatformFilterType `json:"platform_filter,omitempty" msgpack:"platform_filter,omitempty"`
-	Limit          PlatformFilterType `json:"limit,omitempty" msgpack:"limit,omitempty"`
+	EnumValues []interface{} `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
+	Filter     FilterType    `json:"filter,omitempty" msgpack:"filter,omitempty"`
 
 	// Extended definition for Actionable elements
 	// like Configs and Responses.
