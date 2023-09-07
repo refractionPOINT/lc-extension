@@ -42,10 +42,10 @@ type RecordKey = struct {
 type RequiredFields = []SchemaKey
 
 // for sid and platforms data_type
-type FilterType = struct {
+type Validator = struct {
 	// whitelist and blacklist are mutually exclusive
 	// for platforms, sid platforms, string chars
-	ValidRE []string `json:"valid_re,omitempty" msgpack:"valid_re,omitempty"`
+	ValidRE   []string `json:"valid_re,omitempty" msgpack:"valid_re,omitempty"`
 	InvalidRE []string `json:"invalid_re,omitempty" msgpack:"invalid_re,omitempty"`
 	// for number and time/date data_types
 	Min []string `json:"min,omitempty" msgpack:"min,omitempty"`
@@ -68,7 +68,7 @@ type SchemaElement struct {
 	// Extended definition for Interactive elements
 	// -------------------------------------------
 	EnumValues []interface{} `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
-	Filter     FilterType    `json:"filter,omitempty" msgpack:"filter,omitempty"`
+	Filter     Validator     `json:"filter,omitempty" msgpack:"filter,omitempty"`
 
 	// Extended definition for Actionable elements
 	// like Configs and Responses.
