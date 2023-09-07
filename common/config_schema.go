@@ -45,8 +45,8 @@ type RequiredFields = []SchemaKey
 type FilterType = struct {
 	// whitelist and blacklist are mutually exclusive
 	// for platforms, sid platforms, string chars
-	Whitelist []string `json:"whitelist,omitempty" msgpack:"whitelist,omitempty"`
-	Blacklist []string `json:"blacklist,omitempty" msgpack:"blacklist,omitempty"`
+	ValidRE []string `json:"valid_re,omitempty" msgpack:"valid_re,omitempty"`
+	InvalidRE []string `json:"invalid_re,omitempty" msgpack:"invalid_re,omitempty"`
 	// for number and time/date data_types
 	Min []string `json:"min,omitempty" msgpack:"min,omitempty"`
 	Max []string `json:"max,omitempty" msgpack:"max,omitempty"`
