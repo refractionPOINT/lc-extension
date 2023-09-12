@@ -52,6 +52,13 @@ type Validator = struct {
 	Max []string `json:"max,omitempty" msgpack:"max,omitempty"`
 }
 
+type ComplexEnumValues = struct {
+	Label         string `json:"label" msgpack:"label"`
+	Value         string `json:"value" msgpack:"value"`
+	CategoryKey   string `json:"category_key,omitempty" msgpack:"category_key,omitempty"`
+	ReferenceLink string `json:"reference_link,omitempty" msgpack:"reference_link,omitempty"`
+}
+
 type SchemaElement struct {
 	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
 	Description  string         `json:"description" msgpack:"description"`
@@ -67,8 +74,8 @@ type SchemaElement struct {
 
 	// Extended definition for Interactive elements
 	// -------------------------------------------
-	EnumValues []interface{} `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
-	Filter     Validator     `json:"filter,omitempty" msgpack:"filter,omitempty"`
+	EnumValues []ComplexEnumValues `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
+	Filter     Validator           `json:"filter,omitempty" msgpack:"filter,omitempty"`
 
 	// Extended definition for Actionable elements
 	// like Configs and Responses.
