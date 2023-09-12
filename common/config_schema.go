@@ -74,8 +74,8 @@ type SchemaElement struct {
 
 	// Extended definition for Interactive elements
 	// -------------------------------------------
-	EnumValues []ComplexEnumValues `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
-	Filter     Validator           `json:"filter,omitempty" msgpack:"filter,omitempty"`
+	EnumValues []interface{} `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
+	Filter     Validator     `json:"filter,omitempty" msgpack:"filter,omitempty"`
 
 	// Extended definition for Actionable elements
 	// like Configs and Responses.
