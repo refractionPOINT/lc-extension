@@ -37,6 +37,7 @@ var SchemaDataTypes = struct {
 	Integer string
 	Boolean string
 	Enum    string
+	Secret  string
 
 	SensorID       string
 	OrgID          string
@@ -66,6 +67,7 @@ var SchemaDataTypes = struct {
 	Integer: "integer",
 	Boolean: "bool",
 	Enum:    "enum",
+	Secret:  "secret",
 
 	SensorID:       "sid",
 	OrgID:          "oid",
