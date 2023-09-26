@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"sync"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
@@ -27,6 +28,9 @@ type Extension struct {
 	ConfigSchema   common.SchemaObject
 	RequestSchema  common.RequestSchemas
 	RequiredEvents []common.EventName
+
+	whClients map[string]*limacharlie.WebhookSender
+	mWebhooks sync.RWMutex
 }
 
 type ExtensionResponse struct {
@@ -49,6 +53,7 @@ type RequestCallback struct {
 type EventCallback = func(ctx context.Context, org *limacharlie.Organization, data limacharlie.Dict, conf limacharlie.Dict, idempotentKey string) common.Response
 
 func (e *Extension) Init() error {
+	e.whClients = map[string]*limacharlie.WebhookSender{}
 	return nil
 }
 

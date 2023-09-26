@@ -109,3 +109,30 @@ func (e *Extension) generateWebhookSecretForOrg(oid string) string {
 func (e *Extension) getExtensionAdapterInstallationKeyDesc() string {
 	return fmt.Sprintf("ext %s webhook adapter", e.ExtensionName)
 }
+
+func (e *Extension) GetAdapterClient(o *limacharlie.Organization) (*limacharlie.WebhookSender, error) {
+	oid := o.GetOID()
+
+	e.mWebhooks.RLock()
+	c, ok := e.whClients[oid]
+	e.mWebhooks.RUnlock()
+
+	if ok {
+		return c, nil
+	}
+
+	newClient, err := o.NewWebhookSender(e.ExtensionName, e.generateWebhookSecretForOrg(oid))
+	if err != nil {
+		return nil, err
+	}
+
+	e.mWebhooks.Lock()
+	defer e.mWebhooks.Unlock()
+	c, ok = e.whClients[oid]
+	if ok {
+		newClient.Close()
+		return c, nil
+	}
+	e.whClients[oid] = newClient
+	return newClient, nil
+}
