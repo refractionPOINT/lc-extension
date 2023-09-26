@@ -216,3 +216,7 @@ func unmarshalToStruct(d limacharlie.Dict, s interface{}) (interface{}, error) {
 	}
 	return out, nil
 }
+
+func (e *Extension) GetExtensionPrivateTag() string {
+	return fmt.Sprintf("ext:%s", e.ExtensionName)
+}
