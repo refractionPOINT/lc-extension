@@ -110,7 +110,7 @@ func (e *Extension) getExtensionAdapterInstallationKeyDesc() string {
 	return fmt.Sprintf("ext %s webhook adapter", e.ExtensionName)
 }
 
-func (e *Extension) GetAdapterClient(o *limacharlie.Organization) (*limacharlie.WebhookSender, error) {
+func (e *Extension) getAdapterClient(o *limacharlie.Organization) (*limacharlie.WebhookSender, error) {
 	oid := o.GetOID()
 
 	e.mWebhooks.RLock()
@@ -135,4 +135,15 @@ func (e *Extension) GetAdapterClient(o *limacharlie.Organization) (*limacharlie.
 	}
 	e.whClients[oid] = newClient
 	return newClient, nil
+}
+
+func (e *Extension) SendToWebhookAdapter(o *limacharlie.Organization, data interface{}) error {
+	whClient, err := e.getAdapterClient(o)
+	if err != nil {
+		return err
+	}
+	if err := whClient.Send(data); err != nil {
+		return err
+	}
+	return nil
 }
