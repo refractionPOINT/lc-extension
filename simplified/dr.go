@@ -43,7 +43,20 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 		SecretKey:     l.SecretKey,
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{
-			Fields:       map[common.SchemaKey]common.SchemaElement{},
+			Fields: map[common.SchemaKey]common.SchemaElement{
+				"disable_by_default": {
+					DataType:     common.SchemaDataTypes.Boolean,
+					Description:  "disable new rules by default after the initial subscription",
+					DefaultValue: false,
+					Label:        "Disable new rules by default",
+				},
+				"global_suppression_time": {
+					DataType:     common.SchemaDataTypes.String,
+					Description:  "global suppression period for all detections for rules created by this extension",
+					DefaultValue: "",
+					Label:        "Global suppression time",
+				},
+			},
 			Requirements: [][]common.SchemaKey{},
 		},
 		// The schema defining what requests to this Extension should look like.
