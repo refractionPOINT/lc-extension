@@ -13,7 +13,11 @@ import (
 type GetRulesCallback = func(ctx context.Context) (RuleData, error)
 type RuleName = string
 type RuleNamespace = string
-type RuleData = map[RuleNamespace]map[RuleName]limacharlie.Dict
+type RuleInfo struct {
+	Tags []string
+	Data limacharlie.Dict
+}
+type RuleData = map[RuleNamespace]map[RuleName]RuleInfo
 
 type RuleExtension struct {
 	Name      string
@@ -214,7 +218,6 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				expectedTags := []string{l.tag}
 
 				// We need to do a transactional update to check if the
 				// rule exists before we set it.
@@ -227,18 +230,18 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 					// it with the enable by default flag.
 					if record == nil {
 						return &limacharlie.HiveData{
-							Data: ruleData,
+							Data: ruleData.Data,
 							UsrMtd: limacharlie.UsrMtd{
 								Enabled: !config.DisableByDefault,
-								Tags:    mergeTags(expectedTags, []string{}),
+								Tags:    l.mergeTags(ruleData.Tags, []string{}),
 							},
 						}, nil
 					}
 					// If the rule exists, only update its data and upsert
 					// its tags. That way if the user disabled it or tagged
 					// it, we leave it that way.
-					record.Data = ruleData
-					record.UsrMtd.Tags = mergeTags(record.UsrMtd.Tags, expectedTags)
+					record.Data = ruleData.Data
+					record.UsrMtd.Tags = l.mergeTags(record.UsrMtd.Tags, ruleData.Tags)
 					return record, nil
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to update rule %s: %s", ruleName, err.Error()))
@@ -254,8 +257,10 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 	return common.Response{}
 }
 
-func mergeTags(t1 []string, t2 []string) []string {
-	tags := map[string]struct{}{}
+func (l *RuleExtension) mergeTags(t1 []string, t2 []string) []string {
+	tags := map[string]struct{}{
+		l.tag: {}, // Prime with our core tag.
+	}
 	for _, t := range t1 {
 		tags[t] = struct{}{}
 	}
