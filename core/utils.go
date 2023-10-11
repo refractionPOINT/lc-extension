@@ -13,7 +13,7 @@ var (
 	cacheMutex  sync.RWMutex
 )
 
-func usingSecretValue(key string, org *limacharlie.Organization, fn func(val string) error) error {
+func UsingSecretValue(key string, org *limacharlie.Organization, fn func(val string) error) error {
 	var err error
 	var apiKey string
 	var exists bool
