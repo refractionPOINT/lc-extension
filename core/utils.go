@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	SecretCache = make(map[string]string)
+	secretCache = make(map[string]string)
 	cacheMutex  sync.RWMutex
 )
 
@@ -47,13 +47,13 @@ func usingSecretValue(key string, org *limacharlie.Organization, fn func(val str
 
 func setSecretCache(secretName, apiKey string) {
 	cacheMutex.Lock()
-	SecretCache[secretName] = apiKey
+	secretCache[secretName] = apiKey
 	cacheMutex.Unlock()
 }
 
 func getSecretFromCache(secretName string) (string, bool) {
 	cacheMutex.RLock()
-	val, exists := SecretCache[secretName]
+	val, exists := secretCache[secretName]
 	cacheMutex.RUnlock()
 	return val, exists
 }
