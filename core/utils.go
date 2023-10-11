@@ -30,19 +30,22 @@ func usingSecretValue(key string, org *limacharlie.Organization, fn func(val str
 			// ensure to update local cache
 			setSecretCache(secretName, apiKey)
 		}
-	}
 
-	const maxRetries = 2
-	var lastError error
-	for i := 0; i < maxRetries; i++ {
-		err := fn(apiKey)
-		if err == nil {
-			return nil
+		const maxRetries = 2
+		for i := 0; i < maxRetries; i++ {
+			err = fn(apiKey)
+			if err == nil {
+				return nil
+			}
 		}
-		lastError = err
+		return fmt.Errorf("secrets function failed after %d attempts for org: %s err: %v", maxRetries, org.GetOID(), err)
 	}
 
-	return fmt.Errorf("secrets function failed after %d attempts for org: %s err: %v", maxRetries, org.GetOID(), lastError)
+	// no retry logic if actual key passed
+	if err := fn(apiKey); err != nil {
+		return err
+	}
+	return nil
 }
 
 func setSecretCache(secretName, apiKey string) {
