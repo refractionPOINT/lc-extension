@@ -45,11 +45,11 @@ type RequiredFields = []SchemaKey
 type Validator = struct {
 	// whitelist and blacklist are mutually exclusive
 	// for platforms, sid platforms, string chars
-	ValidRE   []string `json:"valid_re,omitempty" msgpack:"valid_re,omitempty"`
-	InvalidRE []string `json:"invalid_re,omitempty" msgpack:"invalid_re,omitempty"`
+	ValidRE   string `json:"valid_re,omitempty" msgpack:"valid_re,omitempty"`
+	InvalidRE string `json:"invalid_re,omitempty" msgpack:"invalid_re,omitempty"`
 	// for number and time/date data_types
-	Min []string `json:"min,omitempty" msgpack:"min,omitempty"`
-	Max []string `json:"max,omitempty" msgpack:"max,omitempty"`
+	Min int `json:"min,omitempty" msgpack:"min,omitempty"`
+	Max int `json:"max,omitempty" msgpack:"max,omitempty"`
 }
 
 type ComplexEnumValues = struct {
