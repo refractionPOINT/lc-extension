@@ -28,6 +28,11 @@ type RuleExtension struct {
 
 type ruleUpdateRequest struct{}
 
+type ruleConfig struct {
+	DisableByDefault      bool   `json:"disable_by_default"`
+	GlobalSuppressionTime string `json:"global_suppression_time"`
+}
+
 var simplifiedRuleNamespaces = map[string]struct{}{
 	"general": {},
 	"managed": {},
@@ -187,6 +192,11 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
 	h := limacharlie.NewHiveClient(org)
 
+	config := ruleConfig{}
+	if err := conf.UnMarshalToStruct(&config); err != nil {
+		return common.Response{Error: err.Error()}
+	}
+
 	wg := sync.WaitGroup{}
 	rulesData, err := l.GetRules(ctx)
 	if err != nil {
@@ -204,16 +214,34 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				// Push the update.
-				if _, err := h.Add(limacharlie.HiveArgs{
+				expectedTags := []string{l.tag}
+
+				// We need to do a transactional update to check if the
+				// rule exists before we set it.
+				if _, err := h.UpdateTx(limacharlie.HiveArgs{
 					HiveName:     namespace,
 					PartitionKey: org.GetOID(),
 					Key:          ruleName,
-					Data:         ruleData,
-					Tags:         []string{l.tag},
+				}, func(record *limacharlie.HiveData) (*limacharlie.HiveData, error) {
+					// If the rule does not exist (null), just add
+					// it with the enable by default flag.
+					if record == nil {
+						return &limacharlie.HiveData{
+							Data: ruleData,
+							UsrMtd: limacharlie.UsrMtd{
+								Enabled: !config.DisableByDefault,
+								Tags:    mergeTags(expectedTags, []string{}),
+							},
+						}, nil
+					}
+					// If the rule exists, only update its data and upsert
+					// its tags. That way if the user disabled it or tagged
+					// it, we leave it that way.
+					record.Data = ruleData
+					record.UsrMtd.Tags = mergeTags(record.UsrMtd.Tags, expectedTags)
+					return record, nil
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to update rule %s: %s", ruleName, err.Error()))
-					return
 				}
 			}()
 		}
@@ -224,4 +252,19 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 	l.Logger.Info("done updating rules")
 
 	return common.Response{}
+}
+
+func mergeTags(t1 []string, t2 []string) []string {
+	tags := map[string]struct{}{}
+	for _, t := range t1 {
+		tags[t] = struct{}{}
+	}
+	for _, t := range t2 {
+		tags[t] = struct{}{}
+	}
+	res := []string{}
+	for t := range tags {
+		res = append(res, t)
+	}
+	return res
 }
