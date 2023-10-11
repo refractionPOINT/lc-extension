@@ -17,7 +17,7 @@ func UsingSecretValue(key string, org *limacharlie.Organization, fn func(val str
 	var err error
 	var apiKey string
 	var exists bool
-	if strings.Contains(key, "hive://") {
+	if strings.Contains(key, "hive://secret/") {
 		secretName := path.Base(key)
 		// Try to get secret from cache
 		apiKey, exists = getSecretFromCache(secretName)
@@ -37,6 +37,20 @@ func UsingSecretValue(key string, org *limacharlie.Organization, fn func(val str
 			if err == nil {
 				return nil
 			}
+
+			if i == 1 { // no need to make call to hive again 2nd attempt failed
+				return err
+			}
+
+			// ensure key is upto date
+			apiKey, err = getSecretFromHive(secretName, org)
+			if err != nil {
+				return err
+			}
+
+			// ensure to update local cache
+			setSecretCache(secretName, apiKey)
+
 		}
 		return fmt.Errorf("secrets function failed after %d attempts for org: %s err: %v", maxRetries, org.GetOID(), err)
 	}
