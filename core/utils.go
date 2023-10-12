@@ -42,7 +42,7 @@ func UseSecretValue(key string, org *limacharlie.Organization, fn func(val strin
 	}
 
 	// no retry logic if actual key passed
-	if err := fn(apiKey); err != nil {
+	if err = fn(apiKey); err != nil {
 		return err
 	}
 	return nil
