@@ -13,46 +13,39 @@ var (
 	cacheMutex  sync.RWMutex
 )
 
-func UsingSecretValue(key string, org *limacharlie.Organization, fn func(val string) error) error {
+func UseSecretValue(key string, org *limacharlie.Organization, fn func(val string) error) error {
 	var err error
 	var apiKey string
 	var exists bool
 	if strings.Contains(key, "hive://secret/") {
 		secretName := path.Base(key)
-		// Try to get secret from cache
-		apiKey, exists = getSecretFromCache(secretName)
-		if !exists {
-			apiKey, err = getSecretFromHive(secretName, org)
-			if err != nil {
-				return err
+		for i := 0; i < 2; i++ { // max of two tries
+			// Try to get secret from cache
+			apiKey, exists = getSecretFromCache(secretName)
+			if !exists {
+				apiKey, err = getSecretFromHive(secretName, org)
+				if err != nil {
+					return err
+				}
+
+				// ensure to update local cache
+				setSecretCache(secretName, apiKey)
 			}
 
-			// ensure to update local cache
-			setSecretCache(secretName, apiKey)
-		}
-
-		const maxRetries = 2
-		for i := 0; i < maxRetries; i++ {
 			err = fn(apiKey)
 			if err == nil {
 				return nil
 			}
 
-			if i == 1 { // no need to make call to hive again 2nd attempt failed
+			if i == 1 { // no need to clear cache this is 2nd call
 				return err
 			}
 
-			// ensure key is upto date
-			apiKey, err = getSecretFromHive(secretName, org)
-			if err != nil {
-				return err
-			}
-
-			// ensure to update local cache
-			setSecretCache(secretName, apiKey)
+			// Clear the cache to ensure the next iteration fetches the secret from Hive again
+			deleteSecretCache(secretName)
 
 		}
-		return fmt.Errorf("secrets function failed after %d attempts for org: %s err: %v", maxRetries, org.GetOID(), err)
+		return fmt.Errorf("secrets function failed for org: %s err: %v", org.GetOID(), err)
 	}
 
 	// no retry logic if actual key passed
@@ -73,6 +66,12 @@ func getSecretFromCache(secretName string) (string, bool) {
 	val, exists := secretCache[secretName]
 	cacheMutex.RUnlock()
 	return val, exists
+}
+
+func deleteSecretCache(secretName string) {
+	cacheMutex.Lock()
+	delete(secretCache, secretName)
+	cacheMutex.Unlock()
 }
 
 func getSecretFromHive(recordName string, org *limacharlie.Organization) (string, error) {
