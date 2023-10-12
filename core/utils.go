@@ -16,20 +16,13 @@ var (
 func UseSecretValue(key string, org *limacharlie.Organization, fn func(val string) error) error {
 	var err error
 	var apiKey string
-	var exists bool
+	var secretName string
 	if strings.Contains(key, "hive://secret/") {
-		secretName := path.Base(key)
 		for i := 0; i < 2; i++ { // max of two tries
 			// Try to get secret from cache
-			apiKey, exists = getSecretFromCache(secretName)
-			if !exists {
-				apiKey, err = getSecretFromHive(secretName, org)
-				if err != nil {
-					return err
-				}
-
-				// ensure to update local cache
-				setSecretCache(secretName, apiKey)
+			apiKey, secretName, err = GetSecret(key, org)
+			if err != nil {
+				return err
 			}
 
 			err = fn(apiKey)
@@ -53,6 +46,29 @@ func UseSecretValue(key string, org *limacharlie.Organization, fn func(val strin
 		return err
 	}
 	return nil
+}
+
+func GetSecret(key string, org *limacharlie.Organization) (string, string, error) {
+	apiKey := key
+	var exists bool
+	var secretName string
+	if strings.Contains(key, "hive://secret/") {
+		secretName = path.Base(key)
+		// Try to get secret from cache
+		apiKey, exists = getSecretFromCache(secretName)
+		if !exists {
+			var err error
+			apiKey, err = getSecretFromHive(secretName, org)
+			if err != nil {
+				return "", "", err
+			}
+
+			// ensure to update local cache
+			setSecretCache(secretName, apiKey)
+		}
+	}
+
+	return apiKey, secretName, nil
 }
 
 func setSecretCache(secretName, apiKey string) {
