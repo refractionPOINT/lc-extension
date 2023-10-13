@@ -13,7 +13,11 @@ import (
 type GetRulesCallback = func(ctx context.Context) (RuleData, error)
 type RuleName = string
 type RuleNamespace = string
-type RuleData = map[RuleNamespace]map[RuleName]limacharlie.Dict
+type RuleInfo struct {
+	Tags []string
+	Data limacharlie.Dict
+}
+type RuleData = map[RuleNamespace]map[RuleName]RuleInfo
 
 type RuleExtension struct {
 	Name      string
@@ -27,6 +31,11 @@ type RuleExtension struct {
 }
 
 type ruleUpdateRequest struct{}
+
+type ruleConfig struct {
+	DisableByDefault      bool   `json:"disable_by_default"`
+	GlobalSuppressionTime string `json:"global_suppression_time"`
+}
 
 var simplifiedRuleNamespaces = map[string]struct{}{
 	"general": {},
@@ -43,7 +52,20 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 		SecretKey:     l.SecretKey,
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{
-			Fields:       map[common.SchemaKey]common.SchemaElement{},
+			Fields: map[common.SchemaKey]common.SchemaElement{
+				"disable_by_default": {
+					DataType:     common.SchemaDataTypes.Boolean,
+					Description:  "disable new rules by default after the initial subscription",
+					DefaultValue: false,
+					Label:        "Disable new rules by default",
+				},
+				"global_suppression_time": {
+					DataType:     common.SchemaDataTypes.String,
+					Description:  "global suppression period for all detections for rules created by this extension",
+					DefaultValue: "",
+					Label:        "Global suppression time",
+				},
+			},
 			Requirements: [][]common.SchemaKey{},
 		},
 		// The schema defining what requests to this Extension should look like.
@@ -174,6 +196,11 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
 	h := limacharlie.NewHiveClient(org)
 
+	config := ruleConfig{}
+	if err := conf.UnMarshalToStruct(&config); err != nil {
+		return common.Response{Error: err.Error()}
+	}
+
 	wg := sync.WaitGroup{}
 	rulesData, err := l.GetRules(ctx)
 	if err != nil {
@@ -191,19 +218,68 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				// Push the update.
-				if _, err := h.Add(limacharlie.HiveArgs{
+
+				// We need to do a transactional update to check if the
+				// rule exists before we set it.
+				if _, err := h.UpdateTx(limacharlie.HiveArgs{
 					HiveName:     namespace,
 					PartitionKey: org.GetOID(),
 					Key:          ruleName,
-					Data:         ruleData,
-					Tags:         []string{l.tag},
+				}, func(record *limacharlie.HiveData) (*limacharlie.HiveData, error) {
+					// If the rule does not exist (null), just add
+					// it with the enable by default flag.
+					if record == nil {
+						return &limacharlie.HiveData{
+							Data: ruleData.Data,
+							UsrMtd: limacharlie.UsrMtd{
+								Enabled: !config.DisableByDefault,
+								Tags:    l.mergeTags(ruleData.Tags, []string{}),
+							},
+						}, nil
+					}
+					// If the rule exists, only update its data and upsert
+					// its tags. That way if the user disabled it or tagged
+					// it, we leave it that way.
+					record.Data = ruleData.Data
+					record.UsrMtd.Tags = l.mergeTags(record.UsrMtd.Tags, ruleData.Tags)
+					return record, nil
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to update rule %s: %s", ruleName, err.Error()))
-					return
 				}
 			}()
 		}
+
+		// Get the list of rules in prod and check they're all in our local list.
+		// If not, we'll remove them.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			existingRules, err := h.ListMtd(limacharlie.HiveArgs{
+				HiveName:     namespace,
+				PartitionKey: org.GetOID(),
+			})
+			if err != nil {
+				l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
+				return
+			}
+			for ruleName := range existingRules {
+				if _, ok := rules[ruleName]; ok {
+					continue
+				}
+				ruleName := ruleName
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if _, err := h.Remove(limacharlie.HiveArgs{
+						HiveName:     namespace,
+						PartitionKey: org.GetOID(),
+						Key:          ruleName,
+					}); err != nil {
+						l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
+					}
+				}()
+			}
+		}()
 	}
 
 	wg.Wait()
@@ -211,4 +287,21 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 	l.Logger.Info("done updating rules")
 
 	return common.Response{}
+}
+
+func (l *RuleExtension) mergeTags(t1 []string, t2 []string) []string {
+	tags := map[string]struct{}{
+		l.tag: {}, // Prime with our core tag.
+	}
+	for _, t := range t1 {
+		tags[t] = struct{}{}
+	}
+	for _, t := range t2 {
+		tags[t] = struct{}{}
+	}
+	res := []string{}
+	for t := range tags {
+		res = append(res, t)
+	}
+	return res
 }
