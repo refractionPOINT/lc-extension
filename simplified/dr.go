@@ -248,6 +248,38 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 				}
 			}()
 		}
+
+		// Get the list of rules in prod and check they're all in our local list.
+		// If not, we'll remove them.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			existingRules, err := h.ListMtd(limacharlie.HiveArgs{
+				HiveName:     namespace,
+				PartitionKey: org.GetOID(),
+			})
+			if err != nil {
+				l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
+				return
+			}
+			for ruleName := range existingRules {
+				if _, ok := rules[ruleName]; ok {
+					continue
+				}
+				ruleName := ruleName
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if _, err := h.Remove(limacharlie.HiveArgs{
+						HiveName:     namespace,
+						PartitionKey: org.GetOID(),
+						Key:          ruleName,
+					}); err != nil {
+						l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
+					}
+				}()
+			}
+		}()
 	}
 
 	wg.Wait()
