@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
 )
@@ -64,6 +63,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					Description:  "global suppression period for all detections for rules created by this extension",
 					DefaultValue: "",
 					Label:        "Global suppression time",
+					PlaceHolder:  "24h",
 				},
 			},
 			Requirements: [][]common.SchemaKey{},
