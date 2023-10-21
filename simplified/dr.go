@@ -126,7 +126,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				}
 
 				// We also push the initial update.
-				resp := l.onUpdate(ctx, org, nil, nil, "")
+				resp := l.onInstall(ctx, org, nil, nil, "")
 				if resp.Error != "" {
 					return resp
 				}
@@ -297,6 +297,56 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 	l.Logger.Info("done updating rules")
 
 	return common.Response{}
+}
+
+func (l *RuleExtension) onInstall(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
+	h := limacharlie.NewHiveClient(org)
+
+	config := ruleConfig{}
+	if err := conf.UnMarshalToStruct(&config); err != nil {
+		return common.Response{Error: err.Error()}
+	}
+
+	wg := sync.WaitGroup{}
+	rulesData, err := l.GetRules(ctx)
+	if err != nil {
+		return common.Response{Error: err.Error()}
+	}
+
+	sm := semaphore.NewWeighted(100)
+	trueValue := true
+
+	for namespace, rules := range rulesData {
+		if _, ok := simplifiedRuleNamespaces[namespace]; !ok {
+			l.Logger.Error(fmt.Sprintf("invalid namespace %s", namespace))
+			continue
+		}
+		namespace = fmt.Sprintf("dr-%s", namespace)
+		for ruleName, ruleData := range rules {
+			ruleName, ruleData := ruleName, ruleData
+			if err := sm.Acquire(ctx, 1); err != nil {
+				return common.Response{Error: err.Error()}
+			}
+			l.Logger.Info(fmt.Sprintf("installing rule %s", ruleName))
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer sm.Release(1)
+
+				// On Install we just add the rule with the enable by default flag.
+				if _, err := h.Add(limacharlie.HiveArgs{
+					HiveName:     namespace,
+					PartitionKey: org.GetOID(),
+					Key:          ruleName,
+					Data:         ruleData.Data,
+					Enabled:      &trueValue,
+					Tags:         l.mergeTags(ruleData.Tags, []string{}),
+				}); err != nil {
+					l.Logger.Error(fmt.Sprintf("failed to add rule %s: %s", ruleName, err.Error()))
+				}
+			}()
+		}
+	}
 }
 
 func (l *RuleExtension) mergeTags(t1 []string, t2 []string) []string {
