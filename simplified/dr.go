@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
@@ -207,6 +209,9 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 	if err != nil {
 		return common.Response{Error: err.Error()}
 	}
+
+	sm := semaphore.NewWeighted(100)
+
 	for namespace, rules := range rulesData {
 		if _, ok := simplifiedRuleNamespaces[namespace]; !ok {
 			l.Logger.Error(fmt.Sprintf("invalid namespace %s", namespace))
@@ -215,10 +220,14 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 		namespace = fmt.Sprintf("dr-%s", namespace)
 		for ruleName, ruleData := range rules {
 			ruleName, ruleData := ruleName, ruleData
+			if err := sm.Acquire(ctx, 1); err != nil {
+				return common.Response{Error: err.Error()}
+			}
 			l.Logger.Info(fmt.Sprintf("updating rule %s", ruleName))
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+				defer sm.Release(1)
 
 				// We need to do a transactional update to check if the
 				// rule exists before we set it.
