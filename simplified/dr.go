@@ -347,6 +347,12 @@ func (l *RuleExtension) onInstall(ctx context.Context, org *limacharlie.Organiza
 			}()
 		}
 	}
+
+	wg.Wait()
+
+	l.Logger.Info("done installing rules")
+
+	return common.Response{}
 }
 
 func (l *RuleExtension) mergeTags(t1 []string, t2 []string) []string {
