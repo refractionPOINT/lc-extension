@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
 )
