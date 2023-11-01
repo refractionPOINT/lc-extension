@@ -47,7 +47,7 @@ type ExtensionCallbacks struct {
 
 type RequestCallback struct {
 	RequestStruct interface{}
-	Callback      func(ctx context.Context, org *limacharlie.Organization, req interface{}, conf limacharlie.Dict, idempotentKey string) common.Response
+	Callback      func(ctx context.Context, org *limacharlie.Organization, req interface{}, conf limacharlie.Dict, idempotentKey string, resourceState map[string]common.ResourceState) common.Response
 }
 
 type EventCallback = func(ctx context.Context, org *limacharlie.Organization, data limacharlie.Dict, conf limacharlie.Dict, idempotentKey string) common.Response
@@ -146,7 +146,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
-		response = rcb.Callback(ctx, org, tmpData, message.Request.Config, message.IdempotencyKey)
+		response = rcb.Callback(ctx, org, tmpData, message.Request.Config, message.IdempotencyKey, message.Request.ResourceState)
 	} else if message.ErrorReport != nil {
 		e.Callbacks.ErrorHandler(message.ErrorReport)
 	} else if message.ConfigValidation != nil {
