@@ -11,3 +11,4 @@ _PROTOCOL_VERSION = 20221218
 from .ext import Extension
 from .messages import *
 from .schema import *
+from .jobs import *
