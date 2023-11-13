@@ -276,6 +276,19 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 				if _, ok := rules[ruleName]; ok {
 					continue
 				}
+				// Only delete rules with our tag, this avoids
+				// mistakes where the extension is not Segmented.
+				isRemove := false
+				for _, t := range existingRules[ruleName].UsrMtd.Tags {
+					if t == l.tag {
+						isRemove = true
+						break
+					}
+				}
+				if !isRemove {
+					continue
+				}
+
 				ruleName := ruleName
 				wg.Add(1)
 				go func() {
