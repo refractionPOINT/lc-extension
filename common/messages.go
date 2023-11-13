@@ -65,11 +65,11 @@ type RequestMessage struct {
 	Action        ActionName               `json:"action" msgpack:"action"`
 	Data          limacharlie.Dict         `json:"data" msgpack:"data"`
 	Config        limacharlie.Dict         `json:"config" msgpack:"config"`
-	ResourceState map[string]ResourceState `json:"res_state"`
+	ResourceState map[string]ResourceState `json:"resource_state" msgpack:"resource_state"`
 }
 
 type ResourceState struct {
-	LastModified int64 `json:"last_mod"`
+	LastModified int64 `json:"last_mod" msgpack:"last_mod"`
 }
 
 // Used to indicate the Extension wants to be called again in a given amount of
