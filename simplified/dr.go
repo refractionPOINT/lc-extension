@@ -196,7 +196,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
-func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
+func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string, resourceState map[string]common.ResourceState) common.Response {
 	h := limacharlie.NewHiveClient(org)
 
 	config := ruleConfig{}
