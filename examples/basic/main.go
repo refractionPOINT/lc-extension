@@ -119,7 +119,7 @@ func (e *BasicExtension) Init() error {
 	return nil
 }
 
-func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
+func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string, resState map[string]common.ResourceState) common.Response {
 	request := data.(*PingRequest)
 
 	return common.Response{
