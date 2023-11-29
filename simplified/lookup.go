@@ -96,7 +96,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				}
 
 				// We also push the initial update.
-				resp := l.onUpdate(ctx, org, nil, nil, "")
+				resp := l.onUpdate(ctx, org, nil, nil, "", map[string]common.ResourceState{})
 				if resp.Error != "" {
 					return resp
 				}
@@ -163,7 +163,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
-func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
+func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string, resourceState map[string]common.ResourceState) common.Response {
 	h := limacharlie.NewHiveClient(org)
 
 	wg := sync.WaitGroup{}
