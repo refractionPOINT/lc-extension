@@ -210,6 +210,10 @@ func (e *Extension) generateSDK(oad common.OrgAccessData) (*limacharlie.Organiza
 }
 
 func unmarshalToStruct(d limacharlie.Dict, s interface{}) (interface{}, error) {
+	if s == nil {
+		return nil, fmt.Errorf("invalid request missing request struct definition")
+	}
+
 	// Create a new instance of the struct needed using reflection.
 	inCopyValue := reflect.ValueOf(s).Elem()
 	inCopy := reflect.New(inCopyValue.Type())
