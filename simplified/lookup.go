@@ -95,13 +95,12 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 					return common.Response{Error: err.Error()}
 				}
 
-				// We also push the initial update.
-				resp := l.onUpdate(ctx, org, nil, nil, "", map[string]common.ResourceState{})
-				if resp.Error != "" {
-					return resp
-				}
-
-				return common.Response{}
+				// The initial update will be done asynchronously.
+				return common.Response{Continuations: []common.ContinuationRequest{{
+					InDelaySeconds: 1,
+					Action:         "update_lookup",
+					State:          limacharlie.Dict{},
+				}}}
 			},
 			// An Org unsubscribed.
 			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {

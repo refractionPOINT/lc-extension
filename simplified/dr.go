@@ -125,13 +125,12 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					return common.Response{Error: err.Error()}
 				}
 
-				// We also push the initial update.
-				resp := l.onInstall(ctx, org, nil, nil, "")
-				if resp.Error != "" {
-					return resp
-				}
-
-				return common.Response{}
+				// The initial update will be done asynchronously.
+				return common.Response{Continuations: []common.ContinuationRequest{{
+					InDelaySeconds: 1,
+					Action:         "update_rules",
+					State:          limacharlie.Dict{},
+				}}}
 			},
 			// An Org unsubscribed.
 			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
