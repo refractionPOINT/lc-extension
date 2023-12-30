@@ -115,6 +115,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusInternalServerError, &response)
 			return
 		}
+		defer org.Close()
 
 		handler, ok := e.Callbacks.EventHandlers[message.Event.EventName]
 		if !ok {
@@ -132,6 +133,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusInternalServerError, &response)
 			return
 		}
+		defer org.Close()
 
 		rcb, ok := e.Callbacks.RequestHandlers[message.Request.Action]
 		if !ok {
@@ -157,6 +159,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusInternalServerError, &response)
 			return
 		}
+		defer org.Close()
+
 		if e.Callbacks.ValidateConfig != nil {
 			response = e.Callbacks.ValidateConfig(ctx, org, message.ConfigValidation.Config)
 		}
