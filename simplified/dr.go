@@ -3,6 +3,7 @@ package simplified
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"golang.org/x/sync/semaphore"
@@ -155,8 +156,11 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 						PartitionKey: org.GetOID(),
 					})
 					if err != nil {
-						l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
-						return common.Response{Error: err.Error()}
+						if !strings.Contains(err.Error(), "UNAUTHORIZED") {
+							l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
+							return common.Response{Error: err.Error()}
+						}
+						continue
 					}
 					for ruleName, ruleData := range rules {
 						isRemove := false
