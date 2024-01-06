@@ -3,6 +3,7 @@ package simplified
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -45,6 +46,8 @@ var simplifiedRuleNamespaces = map[string]struct{}{
 	"managed": {},
 	"service": {},
 }
+
+var isDebugLogRules = os.Getenv("DEBUG_LOG_RULES") != ""
 
 func (l *RuleExtension) Init() (*core.Extension, error) {
 	l.tag = fmt.Sprintf("ext:%s", l.Name)
@@ -235,6 +238,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 				// If suppression is set, modify a copy of the rule data.
 				ruleToSet := ruleData.Data
 				if config.GlobalSuppressionTime != "" {
+					ruleToSet = limacharlie.Dict{}
 					if _, err := ruleToSet.ImportFromStruct(ruleData.Data); err != nil {
 						l.Logger.Error(fmt.Sprintf("failed to duplicate data: %s", err.Error()))
 						ruleToSet = ruleData.Data
@@ -243,6 +247,9 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 							ruleToSet = ruleData.Data
 						}
 					}
+				}
+				if isDebugLogRules {
+					l.Logger.Info(fmt.Sprintf("rule %s: %s", ruleName, ruleToSet))
 				}
 
 				// We need to do a transactional update to check if the
@@ -256,7 +263,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 					// it with the enable by default flag.
 					if record == nil {
 						return &limacharlie.HiveData{
-							Data: ruleData.Data,
+							Data: ruleToSet,
 							UsrMtd: limacharlie.UsrMtd{
 								Enabled: !config.DisableByDefault,
 								Tags:    l.mergeTags(ruleData.Tags, []string{}),
@@ -266,7 +273,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 					// If the rule exists, only update its data and upsert
 					// its tags. That way if the user disabled it or tagged
 					// it, we leave it that way.
-					record.Data = ruleData.Data
+					record.Data = ruleToSet
 					record.UsrMtd.Tags = l.mergeTags(record.UsrMtd.Tags, ruleData.Tags)
 					return record, nil
 				}); err != nil {
