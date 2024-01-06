@@ -228,6 +228,19 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 				defer wg.Done()
 				defer sm.Release(1)
 
+				// If suppression is set, modify a copy of the rule data.
+				ruleToSet := ruleData.Data
+				if config.GlobalSuppressionTime != "" {
+					if _, err := ruleToSet.ImportFromStruct(ruleData.Data); err != nil {
+						l.Logger.Error(fmt.Sprintf("failed to duplicate data: %s", err.Error()))
+						ruleToSet = ruleData.Data
+					} else {
+						if ruleToSet = addSuppression(ruleToSet, config.GlobalSuppressionTime); ruleToSet == nil {
+							ruleToSet = ruleData.Data
+						}
+					}
+				}
+
 				// We need to do a transactional update to check if the
 				// rule exists before we set it.
 				if _, err := h.UpdateTx(limacharlie.HiveArgs{
@@ -382,4 +395,31 @@ func (l *RuleExtension) mergeTags(t1 []string, t2 []string) []string {
 		res = append(res, t)
 	}
 	return res
+}
+
+func addSuppression(rule limacharlie.Dict, suppressionTime string) limacharlie.Dict {
+	rrs := rule["respond"]
+	if rrs == nil {
+		return nil
+	}
+	rs := rrs.([]interface{})
+	if len(rs) == 0 {
+		return nil
+	}
+	for _, r := range rs {
+		r, ok := r.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if r["action"] != "report" {
+			continue
+		}
+		r["suppression"] = limacharlie.Dict{
+			"max_count": 1,
+			"period":    suppressionTime,
+			"is_global": false,
+			"keys":      []string{r["name"].(string)},
+		}
+	}
+	return rule
 }
