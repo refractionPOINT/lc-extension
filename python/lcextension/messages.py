@@ -66,6 +66,7 @@ class MessageRequest(object):
         self.action = data.get('action', None)
         self.data = data.get('data', None)
         self.conf = data.get('config', None)
+        self.resState = data.get('resource_state', None)
 
 class MessageEvent(object):
     def __init__(self, data):
