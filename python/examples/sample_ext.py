@@ -52,7 +52,7 @@ class SampleExtension(lcextension.Extension):
         # be reported as a failure to validate for LimaCharlie.
         pass
 
-    def handlePing(self, sdk, data, conf):
+    def handlePing(self, sdk, data, conf, resState):
         return lcextension.Response(data = data)
     
     def handleSubscribe(self, sdk, data, conf):

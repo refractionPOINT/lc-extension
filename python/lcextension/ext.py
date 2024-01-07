@@ -94,7 +94,7 @@ class Extension(object):
             if handler is None:
                 self.logCritical(f"unknown action '{msg.msg_request.action}'")
                 return Response(error = f"unknown action '{msg.msg_request.action}'")
-            return handler(sdk, msg.msg_request.data, msg.msg_request.conf)
+            return handler(sdk, msg.msg_request.data, msg.msg_request.conf, msg.msg_request.resState)
         if msg.msg_event is not None:
             sdk = limacharlie.Manager(oid = msg.msg_event.org_access_data.oid, jwt = msg.msg_event.org_access_data.jwt)
             handler = self.eventHandlers.get(msg.msg_event.event_name, None)
