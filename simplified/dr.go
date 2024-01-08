@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/semaphore"
 
@@ -89,6 +90,19 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 
 	x.Callbacks = core.ExtensionCallbacks{
 		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config limacharlie.Dict) common.Response {
+			c := ruleConfig{}
+			if err := config.UnMarshalToStruct(&c); err != nil {
+				return common.Response{Error: err.Error()}
+			}
+			if c.GlobalSuppressionTime != "" {
+				d, err := time.ParseDuration(c.GlobalSuppressionTime)
+				if err != nil {
+					return common.Response{Error: fmt.Sprintf("invalid global suppression time: %s", err.Error())}
+				}
+				if d > 24*time.Hour {
+					return common.Response{Error: "global suppression time cannot be more than 24h"}
+				}
+			}
 			return common.Response{}
 		},
 		RequestHandlers: map[common.ActionName]core.RequestCallback{
