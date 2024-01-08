@@ -68,7 +68,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				},
 				"global_suppression_time": {
 					DataType:     common.SchemaDataTypes.String,
-					Description:  "global suppression period for all detections for rules created by this extension",
+					Description:  "global suppression period for all detections for rules created by this extension like \"30m\" or \"1h\", with a max of \"24h\".",
 					DefaultValue: "",
 					Label:        "Global suppression time",
 					PlaceHolder:  "24h",
