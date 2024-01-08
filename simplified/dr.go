@@ -154,15 +154,17 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
+				var lastErr error
+
 				// Remove the D&R rule we set up.
 				h := limacharlie.NewHiveClient(org)
 				if _, err := h.Remove(limacharlie.HiveArgs{
 					HiveName:     updateRuleHive,
 					PartitionKey: org.GetOID(),
 					Key:          l.ruleName,
-				}); err != nil {
+				}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
 					l.Logger.Error(fmt.Sprintf("failed to remove scheduling D&R rule: %s", err.Error()))
-					return common.Response{Error: err.Error()}
+					lastErr = err
 				}
 
 				// For every namespace, remove rules with matching tags.
@@ -175,7 +177,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					if err != nil {
 						if !strings.Contains(err.Error(), "UNAUTHORIZED") {
 							l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
-							return common.Response{Error: err.Error()}
+							lastErr = err
 						}
 						continue
 					}
@@ -194,14 +196,14 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 							HiveName:     namespace,
 							PartitionKey: org.GetOID(),
 							Key:          ruleName,
-						}); err != nil {
+						}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
 							l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
-							return common.Response{Error: err.Error()}
+							lastErr = err
 						}
 					}
 				}
 
-				return common.Response{}
+				return common.Response{Error: lastErr.Error()}
 			},
 		},
 		ErrorHandler: func(errMsg *common.ErrorReportMessage) {
