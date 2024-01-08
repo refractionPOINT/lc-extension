@@ -227,7 +227,10 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 
 				wg.Wait()
 
-				return common.Response{Error: lastErr.Error()}
+				if lastErr != nil {
+					return common.Response{Error: lastErr.Error()}
+				}
+				return common.Response{}
 			},
 		},
 		ErrorHandler: func(errMsg *common.ErrorReportMessage) {
