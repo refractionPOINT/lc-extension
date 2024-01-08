@@ -155,6 +155,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
 				var lastErr error
+				mError := sync.Mutex{}
 
 				// Remove the D&R rule we set up.
 				h := limacharlie.NewHiveClient(org)
@@ -164,10 +165,15 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					Key:          l.ruleName,
 				}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
 					l.Logger.Error(fmt.Sprintf("failed to remove scheduling D&R rule: %s", err.Error()))
+					mError.Lock()
 					lastErr = err
+					mError.Unlock()
 				}
 
 				// For every namespace, remove rules with matching tags.
+				sm := semaphore.NewWeighted(100)
+				wg := sync.WaitGroup{}
+				remCtx := context.Background()
 				for namespace := range simplifiedRuleNamespaces {
 					namespace = fmt.Sprintf("dr-%s", namespace)
 					rules, err := h.ListMtd(limacharlie.HiveArgs{
@@ -177,7 +183,9 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					if err != nil {
 						if !strings.Contains(err.Error(), "UNAUTHORIZED") {
 							l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
+							mError.Lock()
 							lastErr = err
+							mError.Unlock()
 						}
 						continue
 					}
@@ -192,16 +200,32 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 						if !isRemove {
 							continue
 						}
-						if _, err := h.Remove(limacharlie.HiveArgs{
-							HiveName:     namespace,
-							PartitionKey: org.GetOID(),
-							Key:          ruleName,
-						}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
-							l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
+						if err := sm.Acquire(remCtx, 1); err != nil {
+							mError.Lock()
 							lastErr = err
+							mError.Unlock()
+							continue
 						}
+						wg.Add(1)
+						ruleName := ruleName
+						go func() {
+							defer wg.Done()
+							defer sm.Release(1)
+							if _, err := h.Remove(limacharlie.HiveArgs{
+								HiveName:     namespace,
+								PartitionKey: org.GetOID(),
+								Key:          ruleName,
+							}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
+								l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
+								mError.Lock()
+								lastErr = err
+								mError.Unlock()
+							}
+						}()
 					}
 				}
+
+				wg.Wait()
 
 				return common.Response{Error: lastErr.Error()}
 			},
