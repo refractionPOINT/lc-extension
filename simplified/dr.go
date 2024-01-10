@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -459,6 +460,12 @@ func addSuppression(rule limacharlie.Dict, suppressionTime string) limacharlie.D
 	rs := rrs.([]interface{})
 	if len(rs) == 0 {
 		return nil
+	}
+	// To avoid errors in prod from before the day where
+	// we validated the suppression time, we'll just
+	// just assume hours if the unit is not set.
+	if i, err := strconv.Atoi(suppressionTime); err == nil {
+		suppressionTime = fmt.Sprintf("%dh", i)
 	}
 	for _, r := range rs {
 		r, ok := r.(map[string]interface{})
