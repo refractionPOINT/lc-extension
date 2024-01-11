@@ -27,7 +27,6 @@ class Extension(object):
 
         self._app = flask.Flask(self._name)
 
-        # ... existing initialization ...
         self.wh_clients = {}  # equivalent to whClients in Go
         self.wh_clients_lock = threading.Lock()  # For thread-safe access to wh_clients
 
