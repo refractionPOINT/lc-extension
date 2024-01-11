@@ -165,43 +165,78 @@ class Extension(object):
             sys.stderr.write( "\n" )
             sys.stderr.flush()
 
-    # // start of webhook methods
+    ####### start of webhook methods #####
             
     def create_extension_adapter(self, manager, opt_mapping={}):
         private_tag = self.get_extension_private_tag()
-        response = manager.create_installation_key(["lc:system", private_tag], self.get_extension_adapter_installation_key_desc())
+        try:
+            response = manager.create_installation_key(["lc:system", private_tag], self.get_extension_adapter_installation_key_desc())
+        except Exception as e:
+            raise Exception(f"failed to create installation key : {e}")
 
-        if response.status != 200:
-            raise Exception(f"failed")
-
+        iid = response["iid"]
         hive = limacharlie.Hive(manager, "cloud_sensor", manager._oid)
 
-        hive.set({
-            "enabled": True,
-            "tags": ["lc:system", private_tag],
-            "data": {
-                "sensor_type": "webhook",
-                "webhook": {
-                    "secret": e.generate_webhook_secret_for_org(oid),
-                    "client_options": {
-                        "hostname": self._name,
-                        "identity": {
-                            "oid": manager._oid,
-                            "installation_key": installationKey,
+        data = {
+                "enabled": True,
+                "tags": ["lc:system", private_tag],
+                "data": {
+                    "sensor_type": "webhook",
+                    "webhook": {
+                        "secret": self.generate_webhook_secret_for_org(manager._oid),
+                        "client_options": {
+                            "hostname": self._name, # ext-name
+                            "identity": {
+                                "oid": manager._oid,
+                                "installation_key": iid,
+                            },
+                            "platform": "json",
+                            "sensor_seed_key": self._name, # ext-name
+                            "mapping": opt_mapping,
                         },
-                        "platform": "json",
-                        "sensor_seed_key": e.ExtensionName,
-                        "mapping": opt_mapping,
                     },
                 },
-            },
-        })
+            }
         
-        return None
-            
+        hive_record = limacharlie.HiveRecord(self._name, data)
+        try: 
+            hive.set(hive_record)
+        except Exception as e:
+            raise Exception(f"failed to create webhook adapter: {e}")
 
     def delete_extension_adapter(self, manager):
-        return None
+        hive = limacharlie.Hive(manager, "cloud_sensor", manager._oid)
+
+        try:
+            hive.delete(self._name)
+        except Exception as e:
+            raise Exception(f"failed hive delete: {e}")
+        
+        private_tag = self.get_extension_private_tag
+        
+        install_key_desc = self.get_extension_adapter_installation_key_desc()
+
+        try:
+            install_keys = manager.get_installation_keys()
+        except Exception as e:
+            raise Exception(f"failed to list installation keys: {e}")
+
+        for org_id, keys in install_keys.items():
+            for key_id, key in keys.items():
+                if key['desc'] != install_key_desc:
+                    continue
+
+                tags = [tag.strip() for tag in key['tags'].split(',') if tag.strip()]
+                is_tag_found = private_tag in tags
+                if not is_tag_found:
+                    continue
+
+                try:
+                    manager.delete_installation_key(key['iid'])
+                except Exception as e:
+                    raise Exception(f"Failed to delete installation key {key['iid']: [e]}")
+
+
 
 
     def generate_webhook_secret_for_org(self, oid):
@@ -221,13 +256,13 @@ class Extension(object):
     
 
     def get_adapter_client(self, manager):
-
         # try to get the client if it already exists
+
         with self.wh_clients_lock:
             client = self.wh_clients.get(manager._oid)
 
         if client:
-            return client, None
+            return client
 
         # Create a new client if it doesn't exist
         try:
@@ -242,7 +277,7 @@ class Extension(object):
                 new_client.close()
                 return client
 
-            self.wh_clients[oid] = new_client
+            self.wh_clients[manager._oid] = new_client
 
         return new_client
     
@@ -256,9 +291,7 @@ class Extension(object):
             wh_client.send(data)
         except Exception as e:
             raise Exception(f"failed webhook client send: {e}")
-
-        return None
     
 
     def get_extension_private_tag(self):
-        return f"ext:{self.ExtensionName}"
+        return f"ext:{self._name}"
