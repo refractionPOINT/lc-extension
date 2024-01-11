@@ -30,7 +30,6 @@ class Extension(object):
         self.wh_clients = {}  # equivalent to whClients in Go
         self.wh_clients_lock = threading.Lock()  # For thread-safe access to wh_clients
 
-
         @self._app.post('/')
         def _handler():
             sig = flask.request.headers.get('lc-ext-sig', None)
