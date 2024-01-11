@@ -172,14 +172,15 @@ class Extension(object):
         try:
             response = manager.create_installation_key(["lc:system", private_tag], self.get_extension_adapter_installation_key_desc())
         except Exception as e:
-            raise Exception(f"failed to create installation key : {e}")
+            raise limacharlie.LcApiException(f"failed to create installation key : {e}")
 
-        iid = response["iid"]
         hive = limacharlie.Hive(manager, "cloud_sensor", manager._oid)
-
+        iid = response["iid"]
         data = {
-                "enabled": True,
-                "tags": ["lc:system", private_tag],
+                "usr_mtd":{
+                    "enabled": True,
+                    "tags": ["lc:system", private_tag],
+                },
                 "data": {
                     "sensor_type": "webhook",
                     "webhook": {
@@ -198,28 +199,27 @@ class Extension(object):
                 },
             }
         
-        hive_record = limacharlie.HiveRecord(self._name, data)
         try: 
+            hive_record = limacharlie.HiveRecord(self._name, data)
             hive.set(hive_record)
         except Exception as e:
-            raise Exception(f"failed to create webhook adapter: {e}")
+            raise limacharlie.LcApiException(f"failed to create webhook adapter: {e}")
 
     def delete_extension_adapter(self, manager):
         hive = limacharlie.Hive(manager, "cloud_sensor", manager._oid)
-
         try:
             hive.delete(self._name)
         except Exception as e:
-            raise Exception(f"failed hive delete: {e}")
-        
-        private_tag = self.get_extension_private_tag
+                if not (isinstance(e, limacharlie.LcApiException) and "RECORD_NOT_FOUND" in str(e)):
+                    raise limacharlie.LcApiException(f"failed hive delete: {e}")
         
         install_key_desc = self.get_extension_adapter_installation_key_desc()
-
         try:
             install_keys = manager.get_installation_keys()
         except Exception as e:
-            raise Exception(f"failed to list installation keys: {e}")
+            raise limacharlie.LcApiException(f"failed to list installation keys: {e}")
+        
+        private_tag = self.get_extension_private_tag()
 
         for org_id, keys in install_keys.items():
             for key_id, key in keys.items():
@@ -234,9 +234,8 @@ class Extension(object):
                 try:
                     manager.delete_installation_key(key['iid'])
                 except Exception as e:
-                    raise Exception(f"Failed to delete installation key {key['iid']: [e]}")
-
-
+                    if not (isinstance(e, limacharlie.LcApiException) and "RECORD_NOT_FOUND" in str(e)):
+                        raise limacharlie.LcApiException(f"Failed to delete installation key {key['iid']: [e]}")
 
 
     def generate_webhook_secret_for_org(self, oid):
@@ -252,12 +251,10 @@ class Extension(object):
     
     def get_extension_adapter_installation_key_desc(self):
         # Returns a description string for the extension adapter installation key
-        return f"ext {self.extension_name} webhook adapter"
-    
+        return f"ext {self._name} webhook adapter"
 
     def get_adapter_client(self, manager):
         # try to get the client if it already exists
-
         with self.wh_clients_lock:
             client = self.wh_clients.get(manager._oid)
 
@@ -292,6 +289,5 @@ class Extension(object):
         except Exception as e:
             raise Exception(f"failed webhook client send: {e}")
     
-
     def get_extension_private_tag(self):
         return f"ext:{self._name}"
