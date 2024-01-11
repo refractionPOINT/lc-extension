@@ -27,6 +27,11 @@ class Extension(object):
 
         self._app = flask.Flask(self._name)
 
+        # ... existing initialization ...
+        self.wh_clients = {}  # equivalent to whClients in Go
+        self.wh_clients_lock = threading.Lock()  # For thread-safe access to wh_clients
+
+
         @self._app.post('/')
         def _handler():
             sig = flask.request.headers.get('lc-ext-sig', None)
@@ -159,3 +164,101 @@ class Extension(object):
             } ) )
             sys.stderr.write( "\n" )
             sys.stderr.flush()
+
+    # // start of webhook methods
+            
+    def create_extension_adapter(self, manager, opt_mapping={}):
+        private_tag = self.get_extension_private_tag()
+        response = manager.create_installation_key(["lc:system", private_tag], self.get_extension_adapter_installation_key_desc())
+
+        if response.status != 200:
+            raise Exception(f"failed")
+
+        hive = limacharlie.Hive(manager, "cloud_sensor", manager._oid)
+
+        hive.set({
+            "enabled": True,
+            "tags": ["lc:system", private_tag],
+            "data": {
+                "sensor_type": "webhook",
+                "webhook": {
+                    "secret": e.generate_webhook_secret_for_org(oid),
+                    "client_options": {
+                        "hostname": self._name,
+                        "identity": {
+                            "oid": manager._oid,
+                            "installation_key": installationKey,
+                        },
+                        "platform": "json",
+                        "sensor_seed_key": e.ExtensionName,
+                        "mapping": opt_mapping,
+                    },
+                },
+            },
+        })
+        
+        return None
+            
+
+    def delete_extension_adapter(self, manager):
+        return None
+
+
+    def generate_webhook_secret_for_org(self, oid):
+        # This generates a secret value deterministically from
+        # the OID so that we can easily know the webhook to
+        # hit without having to query LC. The WEBHOOK_SECRET
+        # needs to remain secret to avoid someone possibly
+        # sending their own data to users.
+        h = hashlib.sha256()
+        h.update(self._secret.encode())
+        h.update(oid.encode())
+        return h.hexdigest()
+    
+    def get_extension_adapter_installation_key_desc(self):
+        # Returns a description string for the extension adapter installation key
+        return f"ext {self.extension_name} webhook adapter"
+    
+
+    def get_adapter_client(self, manager):
+
+        # try to get the client if it already exists
+        with self.wh_clients_lock:
+            client = self.wh_clients.get(manager._oid)
+
+        if client:
+            return client, None
+
+        # Create a new client if it doesn't exist
+        try:
+            new_client = limacharlie.WebhookSender(manager, self._name, self.generate_webhook_secret_for_org(manager._oid))
+        except Exception as e:
+            raise Exception(f"failed to create webhook sender client: {e} ")
+
+        with self.wh_clients_lock:
+            # double check if client was added before add
+            client = self.wh_clients.get(manager._oid)
+            if client:
+                new_client.close()
+                return client
+
+            self.wh_clients[oid] = new_client
+
+        return new_client
+    
+    def send_to_webhook_adapter(self, manager, data):
+        try:
+            wh_client, error = self.get_adapter_client(manager._oid)
+        except Exception as e:
+            raise Exception(f"failed to get adapter client: {e}")
+        
+        try:
+            wh_client.send(data)
+        except Exception as e:
+            raise Exception(f"failed webhook client send: {e}")
+
+        return None
+    
+
+    def get_extension_private_tag(self):
+        return f"ext:{self.ExtensionName}"
