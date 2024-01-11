@@ -256,25 +256,18 @@ class Extension(object):
         with self.wh_clients_lock:
             client = self.wh_clients.get(manager._oid)
 
-        if client:
-            return client
-
-        # Create a new client if it doesn't exist
-        try:
-            new_client = limacharlie.WebhookSender(manager, self._name, self.generate_webhook_secret_for_org(manager._oid))
-        except Exception as e:
-            raise Exception(f"failed to create webhook sender client: {e} ")
-
-        with self.wh_clients_lock:
-            # double check if client was added before add
-            client = self.wh_clients.get(manager._oid)
             if client:
-                new_client.close()
                 return client
+
+            # Create a new client if it doesn't exist
+            try:
+                new_client = limacharlie.WebhookSender(manager, self._name, self.generate_webhook_secret_for_org(manager._oid))
+            except Exception as e:
+                raise Exception(f"failed to create webhook sender client: {e} ")
 
             self.wh_clients[manager._oid] = new_client
 
-        return new_client
+            return new_client
     
     def send_to_webhook_adapter(self, manager, data):
         try:
