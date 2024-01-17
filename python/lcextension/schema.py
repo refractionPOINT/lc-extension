@@ -19,9 +19,9 @@ class SchemaObject(object):
     def serialize(self):
         return {
             'fields' : {n: f.serialize() for n, f in self.Fields.items()},
-            'list_element_name': self.ListElementName
-            'element_desc': self.ElementDescription
-            'key': self.Key
+            'list_element_name': self.ListElementName,
+            'element_desc': self.ElementDescription,
+            'key': self.Key,
             'requirements' : self.Requirements,
 
             # legacy
