@@ -271,7 +271,7 @@ class Extension(object):
     
     def send_to_webhook_adapter(self, manager, data):
         try:
-            wh_client, error = self.get_adapter_client(manager._oid)
+            wh_client = self.get_adapter_client(manager)
         except Exception as e:
             raise Exception(f"failed to get adapter client: {e}")
         
