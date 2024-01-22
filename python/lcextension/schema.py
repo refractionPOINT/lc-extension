@@ -3,6 +3,7 @@ class SchemaObject(object):
         self.Fields = {} # {} of Field name to SchemaElement
         self.Key = None
         self.ListElementName = None
+        self.ElementDescription = None
         self.Requirements = [] # [] of [] of Field names
 
         # legacy
