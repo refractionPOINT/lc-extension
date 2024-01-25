@@ -33,11 +33,12 @@ type RequestSchema struct {
 type SchemaDataType = string
 
 var SchemaDataTypes = struct {
-	String  string
-	Integer string
-	Boolean string
-	Enum    string
-	Secret  string
+	String      string
+	Integer     string
+	Boolean     string
+	Enum        string
+	ComplexEnum string
+	Secret      string
 
 	SensorID       string
 	OrgID          string
@@ -63,11 +64,12 @@ var SchemaDataTypes = struct {
 	Object string
 	Record string
 }{
-	String:  "string",
-	Integer: "integer",
-	Boolean: "bool",
-	Enum:    "enum",
-	Secret:  "secret",
+	String:      "string",
+	Integer:     "integer",
+	Boolean:     "bool",
+	Enum:        "enum",
+	ComplexEnum: "complex_enum",
+	Secret:      "secret",
 
 	SensorID:       "sid",
 	OrgID:          "oid",
