@@ -64,7 +64,8 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
-			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
+			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				org := params.Org
 				l.Logger.Info(fmt.Sprintf("subscribe to %s", org.GetOID()))
 
 				// We set up a D&R rule for recurring update.
@@ -103,7 +104,8 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				}}}
 			},
 			// An Org unsubscribed.
-			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
+			common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				org := params.Org
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
 				// Remove the D&R rule we set up.
@@ -162,8 +164,8 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
-func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string, resourceState map[string]common.ResourceState) common.Response {
-	h := limacharlie.NewHiveClient(org)
+func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallbackParams) common.Response {
+	h := limacharlie.NewHiveClient(params.Org)
 
 	wg := sync.WaitGroup{}
 	lookups, err := l.GetLookup(ctx)
@@ -186,7 +188,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, org *limacharlie.Organiz
 			// Push the update.
 			if _, err := h.Add(limacharlie.HiveArgs{
 				HiveName:     "lookup",
-				PartitionKey: org.GetOID(),
+				PartitionKey: params.Org.GetOID(),
 				Key:          luName,
 				Data: limacharlie.Dict{
 					"lookup_data": d,

@@ -113,7 +113,8 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
-			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
+			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				org := params.Org
 				l.Logger.Info(fmt.Sprintf("subscribe to %s", org.GetOID()))
 
 				// We set up a D&R rule for recurring update.
@@ -152,7 +153,8 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				}}}
 			},
 			// An Org unsubscribed.
-			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
+			common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				org := params.Org
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
 				var lastErr error
@@ -246,11 +248,11 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
-func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string, resourceState map[string]common.ResourceState) common.Response {
-	h := limacharlie.NewHiveClient(org)
+func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbackParams) common.Response {
+	h := limacharlie.NewHiveClient(params.Org)
 
 	config := ruleConfig{}
-	if err := conf.UnMarshalToStruct(&config); err != nil {
+	if err := params.Config.UnMarshalToStruct(&config); err != nil {
 		return common.Response{Error: err.Error()}
 	}
 
@@ -300,7 +302,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 				// rule exists before we set it.
 				if _, err := h.UpdateTx(limacharlie.HiveArgs{
 					HiveName:     namespace,
-					PartitionKey: org.GetOID(),
+					PartitionKey: params.Org.GetOID(),
 					Key:          ruleName,
 				}, func(record *limacharlie.HiveData) (*limacharlie.HiveData, error) {
 					// If the rule does not exist (null), just add
@@ -333,7 +335,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 			defer wg.Done()
 			existingRules, err := h.ListMtd(limacharlie.HiveArgs{
 				HiveName:     namespace,
-				PartitionKey: org.GetOID(),
+				PartitionKey: params.Org.GetOID(),
 			})
 			if err != nil {
 				l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
@@ -362,7 +364,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, org *limacharlie.Organizat
 					defer wg.Done()
 					if _, err := h.Remove(limacharlie.HiveArgs{
 						HiveName:     namespace,
-						PartitionKey: org.GetOID(),
+						PartitionKey: params.Org.GetOID(),
 						Key:          ruleName,
 					}); err != nil {
 						l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))

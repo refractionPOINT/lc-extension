@@ -45,12 +45,27 @@ type ExtensionCallbacks struct {
 	ErrorHandler    func(*common.ErrorReportMessage)
 }
 
-type RequestCallback struct {
-	RequestStruct interface{}
-	Callback      func(ctx context.Context, org *limacharlie.Organization, req interface{}, conf limacharlie.Dict, idempotentKey string, resourceState map[string]common.ResourceState) common.Response
+type RequestCallbackParams struct {
+	Org           *limacharlie.Organization
+	Request       interface{}
+	Config        limacharlie.Dict
+	IdempotentKey string
+	ResourceState map[string]common.ResourceState
 }
 
-type EventCallback = func(ctx context.Context, org *limacharlie.Organization, data limacharlie.Dict, conf limacharlie.Dict, idempotentKey string) common.Response
+type RequestCallback struct {
+	RequestStruct interface{}
+	Callback      func(ctx context.Context, params RequestCallbackParams) common.Response
+}
+
+type EventCallbackParams struct {
+	Org           *limacharlie.Organization
+	Data          limacharlie.Dict
+	Conf          limacharlie.Dict
+	IdempotentKey string
+}
+
+type EventCallback = func(ctx context.Context, params EventCallbackParams) common.Response
 
 func (e *Extension) Init() error {
 	e.whClients = map[string]*limacharlie.WebhookSender{}
@@ -124,7 +139,12 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
-		response = handler(ctx, org, message.Event.Data, message.Event.Config, message.IdempotencyKey)
+		response = handler(ctx, EventCallbackParams{
+			Org:           org,
+			Data:          message.Event.Data,
+			Conf:          message.Event.Config,
+			IdempotentKey: message.IdempotencyKey,
+		})
 	} else if message.Request != nil {
 		org, err := e.generateSDK(message.Request.Org)
 		if err != nil {
@@ -148,7 +168,13 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusBadRequest, &response)
 			return
 		}
-		response = rcb.Callback(ctx, org, tmpData, message.Request.Config, message.IdempotencyKey, message.Request.ResourceState)
+		response = rcb.Callback(ctx, RequestCallbackParams{
+			Org:           org,
+			Request:       tmpData,
+			Config:        message.Request.Config,
+			IdempotentKey: message.IdempotencyKey,
+			ResourceState: message.Request.ResourceState,
+		})
 	} else if message.ErrorReport != nil {
 		e.Callbacks.ErrorHandler(message.ErrorReport)
 	} else if message.ConfigValidation != nil {

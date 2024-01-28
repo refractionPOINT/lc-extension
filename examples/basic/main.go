@@ -80,13 +80,13 @@ func init() {
 		// Events occuring in LimaCharlie that we need to be made aware of.
 		EventHandlers: map[common.EventName]core.EventCallback{
 			// An Org subscribed.
-			common.EventTypes.Subscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
-				Extension.Info(fmt.Sprintf("subscribe to %s", org.GetOID()))
+			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				Extension.Info(fmt.Sprintf("subscribe to %s", params.Org.GetOID()))
 				return common.Response{}
 			},
 			// An Org unsubscribed.
-			common.EventTypes.Unsubscribe: func(ctx context.Context, org *limacharlie.Organization, data, conf limacharlie.Dict, idempotentKey string) common.Response {
-				Extension.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
+			common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				Extension.Info(fmt.Sprintf("unsubscribe from %s", params.Org.GetOID()))
 				return common.Response{}
 			},
 		},
@@ -119,8 +119,8 @@ func (e *BasicExtension) Init() error {
 	return nil
 }
 
-func (e *BasicExtension) OnPing(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string, resState map[string]common.ResourceState) common.Response {
-	request := data.(*PingRequest)
+func (e *BasicExtension) OnPing(ctx context.Context, params core.RequestCallbackParams) common.Response {
+	request := params.Request.(*PingRequest)
 
 	return common.Response{
 		Data: request,
