@@ -46,11 +46,13 @@ type ExtensionCallbacks struct {
 }
 
 type RequestCallbackParams struct {
-	Org           *limacharlie.Organization
-	Request       interface{}
-	Config        limacharlie.Dict
-	IdempotentKey string
-	ResourceState map[string]common.ResourceState
+	Org             *limacharlie.Organization
+	Ident           string
+	Request         interface{}
+	Config          limacharlie.Dict
+	IdempotentKey   string
+	ResourceState   map[string]common.ResourceState
+	InvestigationID string
 }
 
 type RequestCallback struct {
@@ -169,11 +171,13 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response = rcb.Callback(ctx, RequestCallbackParams{
-			Org:           org,
-			Request:       tmpData,
-			Config:        message.Request.Config,
-			IdempotentKey: message.IdempotencyKey,
-			ResourceState: message.Request.ResourceState,
+			Org:             org,
+			Ident:           message.Request.Org.Ident,
+			Request:         tmpData,
+			Config:          message.Request.Config,
+			IdempotentKey:   message.IdempotencyKey,
+			ResourceState:   message.Request.ResourceState,
+			InvestigationID: message.Request.InvestigationID,
 		})
 	} else if message.ErrorReport != nil {
 		e.Callbacks.ErrorHandler(message.ErrorReport)

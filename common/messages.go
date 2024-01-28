@@ -53,19 +53,21 @@ type SchemaRequestResponse struct {
 
 // A set of org credentials the Extension can use.
 type OrgAccessData struct {
-	OID string `json:"oid" msgpack:"oid"`
-	JWT string `json:"jwt" msgpack:"jwt"`
+	OID   string `json:"oid" msgpack:"oid"`
+	JWT   string `json:"jwt" msgpack:"jwt"`
+	Ident string `json:"ident" msgpack:"ident"`
 }
 
 type ActionName = string
 
 // An action request for the Extension.
 type RequestMessage struct {
-	Org           OrgAccessData            `json:"org" msgpack:"org"`
-	Action        ActionName               `json:"action" msgpack:"action"`
-	Data          limacharlie.Dict         `json:"data" msgpack:"data"`
-	Config        limacharlie.Dict         `json:"config" msgpack:"config"`
-	ResourceState map[string]ResourceState `json:"resource_state" msgpack:"resource_state"`
+	Org             OrgAccessData            `json:"org" msgpack:"org"`
+	Action          ActionName               `json:"action" msgpack:"action"`
+	Data            limacharlie.Dict         `json:"data" msgpack:"data"`
+	Config          limacharlie.Dict         `json:"config" msgpack:"config"`
+	ResourceState   map[string]ResourceState `json:"resource_state" msgpack:"resource_state"`
+	InvestigationID string                   `json:"inv_id" msgpack:"inv_id"`
 }
 
 type ResourceState struct {
