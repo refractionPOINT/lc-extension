@@ -38,6 +38,7 @@ class OrgAccessData(object):
     def __init__(self, orgData):
         self.oid = orgData.get( 'oid', None )
         self.jwt = orgData.get( 'jwt', None )
+        self.ident = orgData.get( 'ident', None )
 
 class MessageHeartBeat(object):
     def __init__(self, data):
@@ -67,6 +68,7 @@ class MessageRequest(object):
         self.data = data.get('data', None)
         self.conf = data.get('config', None)
         self.resState = data.get('resource_state', None)
+        self.inv_id = data.get('inv_id', None)
 
 class MessageEvent(object):
     def __init__(self, data):
