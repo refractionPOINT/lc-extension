@@ -49,6 +49,7 @@ type SchemaRequestResponse struct {
 	Config         SchemaObject   `json:"config_schema" msgpack:"config_schema"`
 	Request        RequestSchemas `json:"request_schema" msgpack:"request_schema"`
 	RequiredEvents []EventName    `json:"required_events" msgpack:"required_events"`
+	EventHandlers  []EventName    `json:"event_handlers" msgpack:"event_handlers"`
 }
 
 // A set of org credentials the Extension can use.
@@ -114,7 +115,9 @@ type SensorUpdate struct {
 var EventTypes = struct {
 	Subscribe   EventName
 	Unsubscribe EventName
+	Update      EventName
 }{
 	Subscribe:   "subscribe",
 	Unsubscribe: "unsubscribe",
+	Update:      "update",
 }
