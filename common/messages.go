@@ -114,7 +114,9 @@ type SensorUpdate struct {
 var EventTypes = struct {
 	Subscribe   EventName
 	Unsubscribe EventName
+	Update      EventName
 }{
 	Subscribe:   "subscribe",
 	Unsubscribe: "unsubscribe",
+	Update:      "update",
 }

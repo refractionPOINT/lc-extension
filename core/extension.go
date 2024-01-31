@@ -195,11 +195,17 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			response = e.Callbacks.ValidateConfig(ctx, org, message.ConfigValidation.Config)
 		}
 	} else if message.SchemaRequest != nil {
+
+		eventHandlers := make([]common.EventName, 0)
+		for handler, _ := range e.Callbacks.EventHandlers {
+			eventHandlers = append(eventHandlers, handler)
+		}
+
 		response.Data = &common.SchemaRequestResponse{
 			Views:          e.ViewsSchema,
 			Config:         e.ConfigSchema,
 			Request:        e.RequestSchema,
-			RequiredEvents: e.RequiredEvents,
+			RequiredEvents: eventHandlers,
 		}
 	} else {
 		response.Error = fmt.Sprintf("no data in request: %s", requestData)
