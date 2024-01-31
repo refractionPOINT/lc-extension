@@ -205,8 +205,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Views:          e.ViewsSchema,
 			Config:         e.ConfigSchema,
 			Request:        e.RequestSchema,
-			RequiredEvents: e.RequiredEvents,
-			EventHandlers:  eventHandlers,
+			RequiredEvents: eventHandlers,
 		}
 	} else {
 		response.Error = fmt.Sprintf("no data in request: %s", requestData)
