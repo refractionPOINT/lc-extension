@@ -69,6 +69,14 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{},
 		// The schema defining what requests to this Extension should look like.
+		RequiredEvents: []common.EventName{common.EventTypes.Subscribe, common.EventTypes.Unsubscribe},
+		ViewsSchema: []common.View{
+			{
+				Name:            "",
+				LayoutType:      "action",
+				DefaultRequests: []string{"run"},
+			},
+		},
 		RequestSchema: map[string]common.RequestSchema{
 			"run": {
 				IsUserFacing:     true,
