@@ -131,7 +131,7 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 						},
 						"output_string": common.SchemaElement{
 							DataType:    common.SchemaDataTypes.String,
-							Label:       "Stdout",
+							Label:       "Raw Output",
 							Description: "The non-JSON output of the command.",
 						},
 						"status_code": common.SchemaElement{
