@@ -63,6 +63,13 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 	for k := range l.Descriptors {
 		toolList = append(toolList, k)
 	}
+	toolField := common.SchemaElement{
+		DataType:     common.SchemaDataTypes.Enum,
+		Label:        "Tool",
+		Description:  "The tool provider to use.",
+		EnumValues:   toolList,
+		DisplayIndex: 2,
+	}
 	x := &core.Extension{
 		ExtensionName: l.Name,
 		SecretKey:     l.SecretKey,
@@ -106,13 +113,6 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 							Description:  `The credentials to use for the command. A GCP JSON key, a DigitalOcean Access Token or an AWS "accessKeyID/secretAccessKey" pair.`,
 							DisplayIndex: 1,
 						},
-						"tool": common.SchemaElement{
-							DataType:     common.SchemaDataTypes.Enum,
-							Label:        "Tool",
-							Description:  "The tool provider to use.",
-							EnumValues:   toolList,
-							DisplayIndex: 2,
-						},
 					},
 				},
 				ResponseDefinition: &common.SchemaObject{
@@ -143,6 +143,10 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 				},
 			},
 		},
+	}
+
+	if !isSingleTool {
+		x.RequestSchema["run"].ParameterDefinitions.Fields["tool"] = toolField
 	}
 
 	x.Callbacks = core.ExtensionCallbacks{
@@ -235,10 +239,20 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		request.CommandTokens = tokens
 	}
 
-	handler, ok := e.Descriptors[request.Tool]
-	if !ok {
-		return common.Response{
-			Error: fmt.Sprintf("unknown tool: %s", request.Tool),
+	var handler CLIDescriptor
+
+	if len(e.Descriptors) == 1 {
+		for _, h := range e.Descriptors {
+			handler = h
+			break
+		}
+	} else {
+		var ok bool
+		handler, ok = e.Descriptors[request.Tool]
+		if !ok {
+			return common.Response{
+				Error: fmt.Sprintf("unknown tool: %s", request.Tool),
+			}
 		}
 	}
 
