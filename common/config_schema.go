@@ -50,6 +50,8 @@ type Validator = struct {
 	// for number and time/date data_types
 	Min int `json:"min,omitempty" msgpack:"min,omitempty"`
 	Max int `json:"max,omitempty" msgpack:"max,omitempty"`
+	// for platform and sid types
+	Platforms []string `json:"platforms,omitempty" msgpack:"platforms,omitempty"`
 }
 
 type ComplexEnumValues = struct {
