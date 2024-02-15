@@ -45,6 +45,7 @@ class SchemaElement(object):
         self.EnumValues = None # [] of string
         self.PlaceHolder = None
         self.SupportedActions = None # [] of Action names
+        self.Filter = {}
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
@@ -62,6 +63,7 @@ class SchemaElement(object):
             'enum_values' : self.EnumValues,
             'placeholder' : self.PlaceHolder,
             'supported_actions' : self.SupportedActions,
+            'filter': self.Filter,
         }
 
 class RequestSchemas(object):
