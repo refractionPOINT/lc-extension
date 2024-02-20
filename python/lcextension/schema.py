@@ -82,6 +82,7 @@ class RequestSchema(object):
         self.IsImpersonated = False
         self.ParameterDefinitions = SchemaObject()
         self.ResponseDefinition = None # SchemaObject
+        self.Label = ""
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
@@ -96,6 +97,7 @@ class RequestSchema(object):
             'is_impersonated' : self.IsImpersonated,
             'parameters' : self.ParameterDefinitions.serialize(),
             'response' : None if self.ResponseDefinition is None else self.ResponseDefinition.serialize(),
+            'label': self.Label
         }
 
 class SchemaView(object):
