@@ -42,7 +42,10 @@ type RecordKey = struct {
 type RequiredFields = []SchemaKey
 
 type Validator = struct {
-	// for string chars (mutually exclusive)
+	// for events, string types (mutually exclusive)
+	WhiteList []string `json:"whitelist,omitempty" msgpack:"whitelist,omitempty"`
+	Blacklist []string `json:"blacklist,omitempty" msgpack:"blacklist,omitempty"`
+	// for string types (mutually exclusive)
 	ValidRE   string `json:"valid_re,omitempty" msgpack:"valid_re,omitempty"`
 	InvalidRE string `json:"invalid_re,omitempty" msgpack:"invalid_re,omitempty"`
 	// for number and time/date data_types
