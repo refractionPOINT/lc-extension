@@ -51,13 +51,14 @@ func init() {
 							{"some_value"}, // The "some_value" parameter is required and has no alternative parameters.
 						},
 					},
-					ResponseDefinition: &common.SchemaObject{
+					ResponseDefinition: common.ResponseSchema{
 						Fields: map[common.SchemaKey]common.SchemaElement{
 							"some_value": {
 								Description: "same value as received",
 								DataType:    common.SchemaDataTypes.String,
 							},
 						},
+						SupportedActions: []string{},
 					},
 				},
 			},
