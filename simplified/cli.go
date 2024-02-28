@@ -115,7 +115,7 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 						},
 					},
 				},
-				ResponseDefinition: &common.SchemaObject{
+				ResponseDefinition: common.ResponseSchemaObject{
 					Fields: map[common.SchemaKey]common.SchemaElement{
 						"output_list": common.SchemaElement{
 							DataType:    common.SchemaDataTypes.Object,

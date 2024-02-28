@@ -84,7 +84,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				ShortDescription:     "update the rules",
 				IsImpersonated:       false,
 				ParameterDefinitions: common.SchemaObject{},
-				ResponseDefinition:   &common.SchemaObject{},
+				ResponseDefinition:   common.ResponseSchemaObject{},
 			},
 		},
 	}

@@ -48,7 +48,7 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				ShortDescription:     "update the lookup",
 				IsImpersonated:       false,
 				ParameterDefinitions: common.SchemaObject{},
-				ResponseDefinition:   &common.SchemaObject{},
+				ResponseDefinition:   common.ResponseSchemaObject{},
 			},
 		},
 	}
