@@ -80,15 +80,6 @@ type SchemaElement struct {
 	EnumValues        []interface{}       `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
 	ComplexEnumValues []ComplexEnumValues `json:"complex_enum_values,omitempty" msgpack:"complex_enum_values,omitempty"`
 	Filter            Validator           `json:"filter,omitempty" msgpack:"filter,omitempty"`
-
-	// Extended definition for Actionable elements
-	// like Configs and Responses.
-	// -------------------------------------------
-	// List of Requests that can be performed on the given
-	// element. Will translate into buttons on elements that
-	// will issue a Request to Extension with the element's
-	// data included.
-	SupportedActions []ActionName `json:"supported_actions,omitempty" msgpack:"supported_actions,omitempty"`
 }
 
 // Example of a config for something like a Sigma Extension.

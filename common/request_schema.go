@@ -16,6 +16,14 @@ type StatusMessages struct {
 	ErrorMessage      string `json:"error,omitempty" msgpack:"error,omitempty"`
 }
 
+type ResponseSchema struct {
+	*SchemaObject
+	// List of Requests that can be performed on the given
+	// response data. Will translate into buttons on elements that
+	// will issue a Request to Extension with the element's data
+	SupportedActions []ActionName `json:"supported_actions,omitempty" msgpack:"supported_actions,omitempty"`
+}
+
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
 	IsDefaultRequest     bool           `json:"is_default,omitempty" msgpack:"is_default,omitempty"` // Is the default Request when displaying the state of the Extension.
@@ -26,7 +34,7 @@ type RequestSchema struct {
 	Messages             StatusMessages `json:"messages,omitempty" msgpack:"messages,omitempty"`     // (optional) Customizable text to inform the user
 	IsImpersonated       bool           `json:"is_impersonated" msgpack:"is_impersonated"`           // If true, this action requires a JWT token from a user that it will use to impersonate.
 	ParameterDefinitions SchemaObject   `json:"parameters" msgpack:"parameters"`                     // List of Parameter Names and their definition.
-	ResponseDefinition   *SchemaObject  `json:"response" msgpack:"response"`                         // Schema of the expected Response.
+	ResponseDefinition   ResponseSchema `json:"response" msgpack:"response"`                         // Schema of the expected Response.
 }
 
 // Strongly typed list of Parameter Data Types.

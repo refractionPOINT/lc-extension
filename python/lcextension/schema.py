@@ -44,7 +44,6 @@ class SchemaElement(object):
         self.ObjectSchema = None # SchemaObject
         self.EnumValues = None # [] of string
         self.PlaceHolder = None
-        self.SupportedActions = None # [] of Action names
         self.Filter = {}
         for k, v in kwargs.items():
             if not hasattr(self, k):
@@ -62,7 +61,6 @@ class SchemaElement(object):
             'object' : None if self.ObjectSchema is None else self.ObjectSchema.serialize(),
             'enum_values' : self.EnumValues,
             'placeholder' : self.PlaceHolder,
-            'supported_actions' : self.SupportedActions,
             'filter': self.Filter,
         }
 
