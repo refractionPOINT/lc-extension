@@ -6,7 +6,6 @@ class SchemaObject(object):
         self.ElementDescription = None
         self.Requirements = [] # [] of [] of Field names
         self.SupportedActions = None # [] of Action names
-
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
@@ -19,13 +18,7 @@ class SchemaObject(object):
             'element_desc': self.ElementDescription,
             'key': self.Key,
             'requirements' : self.Requirements,
-
-            # legacy
-            'render_type' : self.RenderType,
-            'key_data_type' : self.KeyDataType,
-            'key_name' : self.KeyName,
-            'key_label' : self.KeyLabel,
-            'key_display_index' : self.KeyDisplayIndex,
+            'supported_actions': self.SupportedActions,
         }
 
 class SchemaElement(object):
