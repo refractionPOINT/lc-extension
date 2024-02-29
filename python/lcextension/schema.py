@@ -5,6 +5,7 @@ class SchemaObject(object):
         self.ListElementName = None
         self.ElementDescription = None
         self.Requirements = [] # [] of [] of Field names
+        self.SupportedActions = None # [] of Action names
 
         # legacy
         self.RenderType = None
@@ -44,7 +45,6 @@ class SchemaElement(object):
         self.ObjectSchema = None # SchemaObject
         self.EnumValues = None # [] of string
         self.PlaceHolder = None
-        self.SupportedActions = None # [] of Action names
         self.Filter = {}
         for k, v in kwargs.items():
             if not hasattr(self, k):
