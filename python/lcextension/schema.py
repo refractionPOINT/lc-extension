@@ -7,12 +7,6 @@ class SchemaObject(object):
         self.Requirements = [] # [] of [] of Field names
         self.SupportedActions = None # [] of Action names
 
-        # legacy
-        self.RenderType = None
-        self.KeyDataType = None # SchemaDataTypes
-        self.KeyLabel = None # SchemaDataTypes
-        self.KeyDisplayIndex = None # SchemaDataTypes
-        self.KeyName = None
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
