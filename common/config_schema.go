@@ -7,35 +7,30 @@ type SchemaKey = string
 // Extension's configs, or it can be a sub object.
 type SchemaObject struct {
 	Fields map[SchemaKey]SchemaElement `json:"fields" msgpack:"fields"`
-	// If this element is a type "Record" object, field "key" defines the keys that own "Fields"
-	Key RecordKey `json:"key,omitempty" msgpack:"key,omitempty"`
-	// what to call each element in the record/list - use for auto generated copy/labels
-	ElementName        string `json:"element_name,omitempty" msgpack:"element_name,omitempty"`
-	ElementDescription string `json:"element_desc,omitempty" msgpack:"element_desc,omitempty"`
-
-	// legacy fields
-	// -------------------------------------------
-	RenderType      string         `json:"render_type,omitempty" msgpack:"render_type,omitempty"`
-	KeyDataType     SchemaDataType `json:"key_data_type,omitempty" msgpack:"key_data_type,omitempty"`
-	KeyName         string         `json:"key_name,omitempty" msgpack:"key_name,omitempty"`
-	KeyLabel        string         `json:"key_label,omitempty" msgpack:"key_label,omitempty"`
-	KeyDisplayIndex int            `json:"key_display_index,omitempty" msgpack:"key_display_index,omitempty"`
+	// for type "Record" and lists of "Object"
+	Key                RecordKey `json:"key,omitempty" msgpack:"key,omitempty"`
+	ElementName        string    `json:"element_name,omitempty" msgpack:"element_name,omitempty"`
+	ElementDescription string    `json:"element_desc,omitempty" msgpack:"element_desc,omitempty"`
 
 	// Extended definition for Interactive elements
-	// like Configs and Requests.
-	// -------------------------------------------
+	// --------------------------------------------
+
 	// All field sets must be satisfied.
 	// Each field is specifies fields where one and only one must be set.
 	Requirements []RequiredFields `json:"requirements" msgpack:"requirements"`
+
+	// List of Requests that can be performed on the response data.
+	// will translate into buttons that issue a follow-up Request with the response data
+	SupportedActions []ActionName `json:"supported_actions,omitempty" msgpack:"supported_actions,omitempty"`
 }
 
 type RecordKey = struct {
 	Name         string         `json:"name,omitempty" msgpack:"name,omitempty"`
-	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"` // Human readable label.
+	Label        Label          `json:"label,omitempty" msgpack:"label,omitempty"`
 	Description  string         `json:"description,omitempty" msgpack:"description,omitempty"`
 	DataType     SchemaDataType `json:"data_type,omitempty" msgpack:"data_type,omitempty"`
 	DisplayIndex int            `json:"display_index,omitempty" msgpack:"display_index,omitempty"`
-	PlaceHolder  string         `json:"placeholder,omitempty" msgpack:"placeholder,omitempty"` // Placeholder to display for this field.
+	PlaceHolder  string         `json:"placeholder,omitempty" msgpack:"placeholder,omitempty"`
 }
 
 // Valid objects require one of the following fields to be specified.
@@ -80,15 +75,6 @@ type SchemaElement struct {
 	EnumValues        []interface{}       `json:"enum_values,omitempty" msgpack:"enum_values,omitempty"` // If the type is enum, these are the possible values.
 	ComplexEnumValues []ComplexEnumValues `json:"complex_enum_values,omitempty" msgpack:"complex_enum_values,omitempty"`
 	Filter            Validator           `json:"filter,omitempty" msgpack:"filter,omitempty"`
-
-	// Extended definition for Actionable elements
-	// like Configs and Responses.
-	// -------------------------------------------
-	// List of Requests that can be performed on the given
-	// element. Will translate into buttons on elements that
-	// will issue a Request to Extension with the element's
-	// data included.
-	SupportedActions []ActionName `json:"supported_actions,omitempty" msgpack:"supported_actions,omitempty"`
 }
 
 // Example of a config for something like a Sigma Extension.
