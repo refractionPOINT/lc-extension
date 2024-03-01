@@ -5,13 +5,7 @@ class SchemaObject(object):
         self.ListElementName = None
         self.ElementDescription = None
         self.Requirements = [] # [] of [] of Field names
-
-        # legacy
-        self.RenderType = None
-        self.KeyDataType = None # SchemaDataTypes
-        self.KeyLabel = None # SchemaDataTypes
-        self.KeyDisplayIndex = None # SchemaDataTypes
-        self.KeyName = None
+        self.SupportedActions = None # [] of Action names
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
@@ -24,13 +18,7 @@ class SchemaObject(object):
             'element_desc': self.ElementDescription,
             'key': self.Key,
             'requirements' : self.Requirements,
-
-            # legacy
-            'render_type' : self.RenderType,
-            'key_data_type' : self.KeyDataType,
-            'key_name' : self.KeyName,
-            'key_label' : self.KeyLabel,
-            'key_display_index' : self.KeyDisplayIndex,
+            'supported_actions': self.SupportedActions,
         }
 
 class SchemaElement(object):
@@ -44,7 +32,6 @@ class SchemaElement(object):
         self.ObjectSchema = None # SchemaObject
         self.EnumValues = None # [] of string
         self.PlaceHolder = None
-        self.SupportedActions = None # [] of Action names
         self.Filter = {}
         for k, v in kwargs.items():
             if not hasattr(self, k):
@@ -62,7 +49,6 @@ class SchemaElement(object):
             'object' : None if self.ObjectSchema is None else self.ObjectSchema.serialize(),
             'enum_values' : self.EnumValues,
             'placeholder' : self.PlaceHolder,
-            'supported_actions' : self.SupportedActions,
             'filter': self.Filter,
         }
 
