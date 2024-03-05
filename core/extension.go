@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"reflect"
 	"sync"
 
@@ -31,6 +32,8 @@ type Extension struct {
 
 	whClients map[string]*limacharlie.WebhookSender
 	mWebhooks sync.RWMutex
+
+	isLogAllErrors bool
 }
 
 type ExtensionResponse struct {
@@ -71,6 +74,7 @@ type EventCallback = func(ctx context.Context, params EventCallbackParams) commo
 
 func (e *Extension) Init() error {
 	e.whClients = map[string]*limacharlie.WebhookSender{}
+	e.isLogAllErrors = os.Getenv("LC_EXTENSION_LOG_ALL_ERRORS") != ""
 	return nil
 }
 
@@ -80,7 +84,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	signature := r.Header.Get("lc-ext-sig")
 	if signature == "" {
-		respond(w, http.StatusOK, nil)
+		e.respondAndLog(w, http.StatusOK, nil)
 		return
 	}
 
@@ -92,7 +96,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		if body, err = gzip.NewReader(r.Body); err != nil {
 			response.Error = err.Error()
-			respond(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response)
 			return
 		}
 		defer body.Close()
@@ -101,26 +105,26 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestData, err := io.ReadAll(body)
 	if err != nil {
 		response.Error = fmt.Sprintf("failed reading body: %v", err)
-		respond(w, http.StatusNoContent, &response)
+		e.respondAndLog(w, http.StatusNoContent, &response)
 		return
 	}
 
 	if !verifyOrigin(requestData, signature, []byte(e.SecretKey)) {
 		response.Error = "invalid signature"
 		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
-		respond(w, http.StatusUnauthorized, nil)
+		e.respondAndLog(w, http.StatusUnauthorized, nil)
 		return
 	}
 
 	message := common.Message{}
 	if err := json.Unmarshal(requestData, &message); err != nil {
 		response.Error = fmt.Sprintf("invalid json body: %v", err)
-		respond(w, http.StatusBadRequest, &response)
+		e.respondAndLog(w, http.StatusBadRequest, &response)
 		return
 	}
 
 	if message.HeartBeat != nil {
-		respond(w, http.StatusOK, &common.HeartBeatResponse{})
+		e.respondAndLog(w, http.StatusOK, &common.HeartBeatResponse{})
 		return
 	}
 
@@ -129,7 +133,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
-			respond(w, http.StatusInternalServerError, &response)
+			e.respondAndLog(w, http.StatusInternalServerError, &response)
 			return
 		}
 		defer org.Close()
@@ -138,7 +142,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			response.Error = fmt.Sprintf("unknown event: %s", message.Event.EventName)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
-			respond(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response)
 			return
 		}
 		response = handler(ctx, EventCallbackParams{
@@ -152,7 +156,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			respond(w, http.StatusInternalServerError, &response)
+			e.respondAndLog(w, http.StatusInternalServerError, &response)
 			return
 		}
 		defer org.Close()
@@ -161,13 +165,13 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			response.Error = fmt.Sprintf("unknown request action: %s", message.Request.Action)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			respond(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response)
 			return
 		}
 		tmpData, err := unmarshalToStruct(message.Request.Data, rcb.RequestStruct)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed to unmarshal request data: %v", err)
-			respond(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response)
 			return
 		}
 		response = rcb.Callback(ctx, RequestCallbackParams{
@@ -186,7 +190,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			respond(w, http.StatusInternalServerError, &response)
+			e.respondAndLog(w, http.StatusInternalServerError, &response)
 			return
 		}
 		defer org.Close()
@@ -197,7 +201,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if message.SchemaRequest != nil {
 
 		eventHandlers := make([]common.EventName, 0)
-		for handler, _ := range e.Callbacks.EventHandlers {
+		for handler := range e.Callbacks.EventHandlers {
 			eventHandlers = append(eventHandlers, handler)
 		}
 
@@ -209,16 +213,29 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		response.Error = fmt.Sprintf("no data in request: %s", requestData)
-		respond(w, http.StatusBadRequest, &response)
+		e.respondAndLog(w, http.StatusBadRequest, &response)
 		return
 	}
 
 	if response.Error != "" {
-		respond(w, http.StatusInternalServerError, &response)
+		e.respondAndLog(w, http.StatusInternalServerError, &response)
 		return
 	}
 	response.Version = PROTOCOL_VERSION
-	respond(w, http.StatusOK, &response)
+	e.respondAndLog(w, http.StatusOK, &response)
+}
+
+func (e *Extension) respondAndLog(w http.ResponseWriter, status int, data interface{}) error {
+	if r, ok := data.(*common.Response); e.isLogAllErrors && ok {
+		if r.Error != "" {
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: r.Error})
+		}
+	}
+	if err := respond(w, status, data); err != nil {
+		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: fmt.Sprintf("failed to respond: %v", err)})
+		return err
+	}
+	return nil
 }
 
 func verifyOrigin(data []byte, sig string, secretKey []byte) bool {
