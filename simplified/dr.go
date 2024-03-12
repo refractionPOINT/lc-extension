@@ -30,7 +30,8 @@ type RuleExtension struct {
 	SecretKey string
 	Logger    limacharlie.LCLogger
 
-	GetRules GetRulesCallback
+	GetRules      GetRulesCallback
+	EventHandlers map[common.EventName]core.EventCallback // Optional
 
 	tag      string
 	ruleName string
@@ -58,6 +59,11 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 	x := &core.Extension{
 		ExtensionName: l.Name,
 		SecretKey:     l.SecretKey,
+		RequiredEvents: []common.EventName{
+			common.EventTypes.Subscribe,
+			common.EventTypes.Unsubscribe,
+			common.EventTypes.Update,
+		},
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{
 			Fields: map[common.SchemaKey]common.SchemaElement{
@@ -145,6 +151,12 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					return common.Response{Error: err.Error()}
 				}
 
+				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
+					if resp := h(ctx, params); resp.Error != "" {
+						return resp
+					}
+				}
+
 				// The initial update will be done asynchronously.
 				return common.Response{Continuations: []common.ContinuationRequest{{
 					InDelaySeconds: 1,
@@ -230,8 +242,22 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 
 				wg.Wait()
 
+				if h, ok := l.EventHandlers[common.EventTypes.Unsubscribe]; ok {
+					if resp := h(ctx, params); resp.Error != "" {
+						return resp
+					}
+				}
+
 				if lastErr != nil {
 					return common.Response{Error: lastErr.Error()}
+				}
+				return common.Response{}
+			},
+			common.EventTypes.Update: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
+					if resp := h(ctx, params); resp.Error != "" {
+						return resp
+					}
 				}
 				return common.Response{}
 			},
