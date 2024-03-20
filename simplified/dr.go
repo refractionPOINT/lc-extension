@@ -254,7 +254,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				return common.Response{}
 			},
 			common.EventTypes.Update: func(ctx context.Context, params core.EventCallbackParams) common.Response {
-				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
+				if h, ok := l.EventHandlers[common.EventTypes.Update]; ok {
 					if resp := h(ctx, params); resp.Error != "" {
 						return resp
 					}
