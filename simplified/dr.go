@@ -152,9 +152,14 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				}
 
 				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
+					l.Logger.Debug("found EventHandler for Subscribe event, callback fired")
+					l.Logger.Debug(fmt.Sprintf("subscribe Event Handler params: %v", params))
 					if resp := h(ctx, params); resp.Error != "" {
+						l.Logger.Debug("EventHandler resp fired")
 						return resp
 					}
+				} else {
+					l.Logger.Warn("no EventHandler found for Sub event")
 				}
 
 				// The initial update will be done asynchronously.
