@@ -150,7 +150,8 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					l.Logger.Error(fmt.Sprintf("failed to add scheduling D&R rule: %s", err.Error()))
 					return common.Response{Error: err.Error()}
 				}
-
+				l.Logger.Info("successfully inside the debug-log branch")
+				l.Logger.Info(fmt.Sprintf("%+v /n", l.EventHandlers))
 				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
 					l.Logger.Info("found EventHandler for Subscribe event, callback fired")
 					l.Logger.Info(fmt.Sprintf("subscribe Event Handler params: %v", params))
@@ -158,7 +159,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 						l.Logger.Info("EventHandler resp fired")
 						return resp
 					}
-				} else {
+				} else if !ok {
 					l.Logger.Warn("no EventHandler found for Sub event")
 				}
 
