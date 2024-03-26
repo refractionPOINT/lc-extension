@@ -151,15 +151,15 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					return common.Response{Error: err.Error()}
 				}
 
-				// if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
-				// 	l.Logger.Info("found EventHandler for Subscribe event, callback fired")
-				// 	l.Logger.Info(fmt.Sprintf("subscribe Event Handler params: %v", params))
-				// 	resp := h(ctx, params)
-				// 	if resp.Error != "" {
-				// 		l.Logger.Error("EventHandler resp err fired")
-				// 		return common.Response{Error: resp.Error}
-				// 	}
-				// }
+				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
+					l.Logger.Info("found EventHandler for Subscribe event, callback fired")
+					l.Logger.Info(fmt.Sprintf("subscribe Event Handler params: %v", params))
+					resp := h(ctx, params)
+					if resp.Error != "" {
+						l.Logger.Error("EventHandler resp err fired")
+						return common.Response{Error: resp.Error}
+					}
+				}
 
 				// The initial update will be done asynchronously.
 				return common.Response{Continuations: []common.ContinuationRequest{{
