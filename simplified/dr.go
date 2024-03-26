@@ -154,9 +154,10 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
 					l.Logger.Info("found EventHandler for Subscribe event, callback fired")
 					l.Logger.Info(fmt.Sprintf("subscribe Event Handler params: %v", params))
-					if resp := h(ctx, params); resp.Error != "" {
-						l.Logger.Info(fmt.Sprintf("EventHandler resp fired: %+v/n", resp.Data))
-						return resp
+					resp := h(ctx, params)
+					if resp.Error != "" {
+						l.Logger.Error("EventHandler resp err fired")
+						return common.Response{Error: resp.Error}
 					}
 				}
 
