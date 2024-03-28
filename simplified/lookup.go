@@ -190,8 +190,9 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
-func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallbackParams) common.Response {
-	h := limacharlie.NewHiveClient(params.Org)
+func (l *LookupExtension) onUpdate(ctx context.Context, params interface{}) common.Response {
+	requestCallbackParams := params.(core.RequestCallbackParams)
+	h := limacharlie.NewHiveClient(requestCallbackParams.Org)
 
 	wg := sync.WaitGroup{}
 	lookups, err := l.GetLookup(ctx)
@@ -214,7 +215,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 			// Push the update.
 			if _, err := h.Add(limacharlie.HiveArgs{
 				HiveName:     "lookup",
-				PartitionKey: params.Org.GetOID(),
+				PartitionKey: requestCallbackParams.Org.GetOID(),
 				Key:          luName,
 				Data: limacharlie.Dict{
 					"lookup_data": d,

@@ -119,8 +119,9 @@ func (e *BasicExtension) Init() error {
 	return nil
 }
 
-func (e *BasicExtension) OnPing(ctx context.Context, params core.RequestCallbackParams) common.Response {
-	request := params.Request.(*PingRequest)
+func (e *BasicExtension) OnPing(ctx context.Context, params interface{}) common.Response {
+	requestCallbackParams := params.(core.RequestCallbackParams)
+	request := requestCallbackParams.Request.(*PingRequest)
 
 	return common.Response{
 		Data: request,
