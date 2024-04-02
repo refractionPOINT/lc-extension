@@ -38,7 +38,7 @@ type RuleExtension struct {
 }
 
 type ruleUpdateRequest struct{}
-type subEventRequest struct{}
+
 type ruleConfig struct {
 	DisableByDefault      bool   `json:"disable_by_default"`
 	GlobalSuppressionTime string `json:"global_suppression_time"`
@@ -92,13 +92,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				ParameterDefinitions: common.SchemaObject{},
 				ResponseDefinition:   &common.SchemaObject{},
 			},
-			"sub_event": {
-				IsUserFacing:         false,
-				ShortDescription:     "executes custom event on subscription",
-				IsImpersonated:       false,
-				ParameterDefinitions: common.SchemaObject{},
-				ResponseDefinition:   &common.SchemaObject{},
-			},
 		},
 	}
 
@@ -123,10 +116,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 			"update_rules": {
 				RequestStruct: &ruleUpdateRequest{},
 				Callback:      l.onUpdate,
-			},
-			"sub_event": {
-				RequestStruct: &subEventRequest{},
-				Callback:      l.onSubEvent,
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
@@ -162,19 +151,22 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					return common.Response{Error: err.Error()}
 				}
 
+				if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
+					l.Logger.Info("found EventHandler for Subscribe event, callback fired")
+					l.Logger.Info(fmt.Sprintf("subscribe Event Handler params: %v", params))
+					resp := h(ctx, params)
+					if resp.Error != "" {
+						l.Logger.Error("EventHandler resp err fired")
+						return common.Response{Error: resp.Error}
+					}
+				}
+
 				// The initial update will be done asynchronously.
-				return common.Response{Continuations: []common.ContinuationRequest{
-					{
-						InDelaySeconds: 1,
-						Action:         "update_rules",
-						State:          limacharlie.Dict{},
-					},
-					{
-						InDelaySeconds: 1,
-						Action:         "sub_event",
-						State:          limacharlie.Dict{},
-					},
-				}}
+				return common.Response{Continuations: []common.ContinuationRequest{{
+					InDelaySeconds: 1,
+					Action:         "update_rules",
+					State:          limacharlie.Dict{},
+				}}}
 			},
 			// An Org unsubscribed.
 			common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
@@ -286,12 +278,11 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
-func (l *RuleExtension) onUpdate(ctx context.Context, params interface{}) common.Response {
-	requestCallbackParams := params.(core.RequestCallbackParams)
-	h := limacharlie.NewHiveClient(requestCallbackParams.Org)
+func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbackParams) common.Response {
+	h := limacharlie.NewHiveClient(params.Org)
 
 	config := ruleConfig{}
-	if err := requestCallbackParams.Config.UnMarshalToStruct(&config); err != nil {
+	if err := params.Config.UnMarshalToStruct(&config); err != nil {
 		return common.Response{Error: err.Error()}
 	}
 
@@ -341,7 +332,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params interface{}) common
 				// rule exists before we set it.
 				if _, err := h.UpdateTx(limacharlie.HiveArgs{
 					HiveName:     namespace,
-					PartitionKey: requestCallbackParams.Org.GetOID(),
+					PartitionKey: params.Org.GetOID(),
 					Key:          ruleName,
 				}, func(record *limacharlie.HiveData) (*limacharlie.HiveData, error) {
 					// If the rule does not exist (null), just add
@@ -374,7 +365,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params interface{}) common
 			defer wg.Done()
 			existingRules, err := h.ListMtd(limacharlie.HiveArgs{
 				HiveName:     namespace,
-				PartitionKey: requestCallbackParams.Org.GetOID(),
+				PartitionKey: params.Org.GetOID(),
 			})
 			if err != nil {
 				l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
@@ -403,7 +394,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params interface{}) common
 					defer wg.Done()
 					if _, err := h.Remove(limacharlie.HiveArgs{
 						HiveName:     namespace,
-						PartitionKey: requestCallbackParams.Org.GetOID(),
+						PartitionKey: params.Org.GetOID(),
 						Key:          ruleName,
 					}); err != nil {
 						l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
@@ -524,18 +515,4 @@ func addSuppression(rule limacharlie.Dict, suppressionTime string) limacharlie.D
 		}
 	}
 	return rule
-}
-
-func (l *RuleExtension) onSubEvent(ctx context.Context, params interface{}) common.Response {
-	eventParams := params.(core.EventCallbackParams)
-	if h, ok := l.EventHandlers[common.EventTypes.Subscribe]; ok {
-		l.Logger.Info("found EventHandler for Subscribe event, callback fired")
-		l.Logger.Info(fmt.Sprintf("subscribe Event Handler params: %v", params))
-		resp := h(ctx, eventParams)
-		if resp.Error != "" {
-			l.Logger.Error("EventHandler resp err fired")
-			return common.Response{Error: resp.Error}
-		}
-	}
-	return common.Response{}
 }

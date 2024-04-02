@@ -60,7 +60,7 @@ type RequestCallbackParams struct {
 
 type RequestCallback struct {
 	RequestStruct interface{}
-	Callback      func(ctx context.Context, params interface{}) common.Response
+	Callback      func(ctx context.Context, params RequestCallbackParams) common.Response
 }
 
 type EventCallbackParams struct {

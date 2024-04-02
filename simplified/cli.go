@@ -157,9 +157,8 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 		RequestHandlers: map[common.ActionName]core.RequestCallback{
 			"run": {
 				RequestStruct: &CLIRunRequest{},
-				Callback: func(ctx context.Context, params interface{}) common.Response {
-					requestCallbackParams := params.(core.RequestCallbackParams)
-					return l.doRun(requestCallbackParams.Org, requestCallbackParams.Request.(*CLIRunRequest), requestCallbackParams.Ident, requestCallbackParams.InvestigationID)
+				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
+					return l.doRun(params.Org, params.Request.(*CLIRunRequest), params.Ident, params.InvestigationID)
 				},
 			},
 		},
