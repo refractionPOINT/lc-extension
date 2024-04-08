@@ -70,6 +70,10 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 		EnumValues:   toolList,
 		DisplayIndex: 2,
 	}
+	longDesc := "Run a CLI command by choosing a CLI tool, a set of credentials to authenticate with, and a list of command line parameters to provide to the CLI tool."
+	if isSingleTool {
+		longDesc = fmt.Sprintf("Run a CLI command using the %s tool by providing a list of command line parameters to provide to it.", toolList[0])
+	}
 	x := &core.Extension{
 		ExtensionName: l.Name,
 		SecretKey:     l.SecretKey,
@@ -89,7 +93,7 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 				IsUserFacing:     true,
 				Label:            "Run a CLI command",
 				ShortDescription: "Run a CLI command for a supported tool.",
-				LongDescription:  "Run a CLI command by choosing a CLI tool, a set of credentials to authenticate with, and a list of command line parameters to provide to the CLI tool.",
+				LongDescription:  longDesc,
 				ParameterDefinitions: common.SchemaObject{
 					Requirements: requiredFields,
 					Fields: map[common.SchemaKey]common.SchemaElement{
