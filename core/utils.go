@@ -35,7 +35,7 @@ func UseSecretValue(key string, org *limacharlie.Organization, fn func(val strin
 			}
 
 			// Clear the cache to ensure the next iteration fetches the secret from Hive again
-			deleteSecretCache(secretName)
+			deleteSecretCache(getSecretCacheKeyName(secretName, org.GetOID()))
 
 		}
 		return fmt.Errorf("secrets function failed for org: %s err: %v", org.GetOID(), err)
@@ -48,14 +48,19 @@ func UseSecretValue(key string, org *limacharlie.Organization, fn func(val strin
 	return nil
 }
 
+func getSecretCacheKeyName(name string, oid string) string {
+	return fmt.Sprintf("%s:%s", oid, name)
+}
+
 func GetSecret(key string, org *limacharlie.Organization) (string, string, error) {
 	apiKey := key
 	var exists bool
 	var secretName string
 	if strings.Contains(key, "hive://secret/") {
 		secretName = path.Base(key)
+		secretCacheKey := getSecretCacheKeyName(secretName, org.GetOID())
 		// Try to get secret from cache
-		apiKey, exists = getSecretFromCache(secretName)
+		apiKey, exists = getSecretFromCache(secretCacheKey)
 		if !exists {
 			var err error
 			apiKey, err = getSecretFromHive(secretName, org)
@@ -64,7 +69,7 @@ func GetSecret(key string, org *limacharlie.Organization) (string, string, error
 			}
 
 			// ensure to update local cache
-			setSecretCache(secretName, apiKey)
+			setSecretCache(secretCacheKey, apiKey)
 		}
 	}
 
