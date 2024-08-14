@@ -109,6 +109,9 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				if d > 24*time.Hour {
 					return common.Response{Error: "global suppression time cannot be more than 24h"}
 				}
+				if d < 1*time.Second {
+					return common.Response{Error: "global suppression time cannot be less than 1s"}
+				}
 			}
 			return common.Response{}
 		},
@@ -309,7 +312,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 
 				// If suppression is set, modify a copy of the rule data.
 				ruleToSet := ruleData.Data
-				if config.GlobalSuppressionTime != "" {
+				if config.GlobalSuppressionTime != "" && config.GlobalSuppressionTime != "0" {
 					ruleToSet = limacharlie.Dict{}
 					if _, err := ruleToSet.ImportFromStruct(ruleData.Data); err != nil {
 						l.Logger.Error(fmt.Sprintf("failed to duplicate data: %s", err.Error()))
