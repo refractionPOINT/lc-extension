@@ -313,6 +313,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 				// If suppression is set, modify a copy of the rule data.
 				ruleToSet := ruleData.Data
 				if config.GlobalSuppressionTime != "" && config.GlobalSuppressionTime != "0" {
+					l.Logger.Info(fmt.Sprintf("applying suppression to rule %s: %q", ruleName, config.GlobalSuppressionTime))
 					ruleToSet = limacharlie.Dict{}
 					if _, err := ruleToSet.ImportFromStruct(ruleData.Data); err != nil {
 						l.Logger.Error(fmt.Sprintf("failed to duplicate data: %s", err.Error()))
