@@ -292,6 +292,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 	}
 
 	sm := semaphore.NewWeighted(100)
+	suppTime := l.shimSuppressionTime(config.GlobalSuppressionTime)
 
 	for namespace, rules := range rulesData {
 		if _, ok := simplifiedRuleNamespaces[namespace]; !ok {
@@ -312,13 +313,13 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 
 				// If suppression is set, modify a copy of the rule data.
 				ruleToSet := ruleData.Data
-				if config.GlobalSuppressionTime != "" && config.GlobalSuppressionTime != "0" {
+				if suppTime != "" {
 					ruleToSet = limacharlie.Dict{}
 					if _, err := ruleToSet.ImportFromStruct(ruleData.Data); err != nil {
 						l.Logger.Error(fmt.Sprintf("failed to duplicate data: %s", err.Error()))
 						ruleToSet = ruleData.Data
 					} else {
-						if ruleToSet = addSuppression(ruleToSet, config.GlobalSuppressionTime); ruleToSet == nil {
+						if ruleToSet = addSuppression(ruleToSet, suppTime); ruleToSet == nil {
 							ruleToSet = ruleData.Data
 						}
 					}
@@ -483,6 +484,28 @@ func (l *RuleExtension) mergeTags(t1 []string, t2 []string) []string {
 	return res
 }
 
+func (l *RuleExtension) shimSuppressionTime(st string) string {
+	if st == "" {
+		return ""
+	}
+	d, err := time.ParseDuration(st)
+	if err != nil {
+		i, err := strconv.Atoi(st)
+		if err != nil {
+			l.Logger.Error(fmt.Sprintf("invalid suppression time: %q", st))
+			return ""
+		}
+		// To avoid errors in prod from before the day where
+		// we validated the suppression time, we'll just
+		// just assume hours if the unit is not set.
+		return fmt.Sprintf("%dh", i)
+	}
+	if d < 1*time.Second {
+		return ""
+	}
+	return st
+}
+
 func addSuppression(rule limacharlie.Dict, suppressionTime string) limacharlie.Dict {
 	rrs := rule["respond"]
 	if rrs == nil {
@@ -491,12 +514,6 @@ func addSuppression(rule limacharlie.Dict, suppressionTime string) limacharlie.D
 	rs := rrs.([]interface{})
 	if len(rs) == 0 {
 		return nil
-	}
-	// To avoid errors in prod from before the day where
-	// we validated the suppression time, we'll just
-	// just assume hours if the unit is not set.
-	if i, err := strconv.Atoi(suppressionTime); err == nil {
-		suppressionTime = fmt.Sprintf("%dh", i)
 	}
 	for _, r := range rs {
 		r, ok := r.(map[string]interface{})
