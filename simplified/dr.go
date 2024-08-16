@@ -485,6 +485,9 @@ func (l *RuleExtension) mergeTags(t1 []string, t2 []string) []string {
 }
 
 func (l *RuleExtension) shimSuppressionTime(st string) string {
+	if st == "" {
+		return ""
+	}
 	d, err := time.ParseDuration(st)
 	if err != nil {
 		i, err := strconv.Atoi(st)
