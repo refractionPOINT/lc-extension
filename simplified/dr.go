@@ -87,7 +87,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 		// The schema defining what requests to this Extension should look like.
 		RequestSchema: map[string]common.RequestSchema{
 			"update_rules": {
-				IsUserFacing:         false,
+				IsUserFacing:         true,
 				ShortDescription:     "update the rules",
 				IsImpersonated:       false,
 				ParameterDefinitions: common.SchemaObject{},
