@@ -7,10 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"golang.org/x/sync/semaphore"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
@@ -87,7 +84,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 		// The schema defining what requests to this Extension should look like.
 		RequestSchema: map[string]common.RequestSchema{
 			"update_rules": {
-				IsUserFacing:         true,
+				IsUserFacing:         false,
 				ShortDescription:     "update the rules",
 				IsImpersonated:       false,
 				ParameterDefinitions: common.SchemaObject{},
@@ -173,9 +170,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				org := params.Org
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
-				var lastErr error
-				mError := sync.Mutex{}
-
 				// Remove the D&R rule we set up.
 				h := limacharlie.NewHiveClient(org)
 				if _, err := h.Remove(limacharlie.HiveArgs{
@@ -184,15 +178,10 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					Key:          l.ruleName,
 				}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
 					l.Logger.Error(fmt.Sprintf("failed to remove scheduling D&R rule: %s", err.Error()))
-					mError.Lock()
-					lastErr = err
-					mError.Unlock()
 				}
 
 				// For every namespace, remove rules with matching tags.
-				sm := semaphore.NewWeighted(100)
-				wg := sync.WaitGroup{}
-				remCtx := context.Background()
+				batchUpdate := h.NewBatchOperations()
 				for namespace := range simplifiedRuleNamespaces {
 					namespace = fmt.Sprintf("dr-%s", namespace)
 					rules, err := h.ListMtd(limacharlie.HiveArgs{
@@ -202,9 +191,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					if err != nil {
 						if !strings.Contains(err.Error(), "UNAUTHORIZED") {
 							l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
-							mError.Lock()
-							lastErr = err
-							mError.Unlock()
 						}
 						continue
 					}
@@ -219,32 +205,25 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 						if !isRemove {
 							continue
 						}
-						if err := sm.Acquire(remCtx, 1); err != nil {
-							mError.Lock()
-							lastErr = err
-							mError.Unlock()
-							continue
-						}
-						wg.Add(1)
-						ruleName := ruleName
-						go func() {
-							defer wg.Done()
-							defer sm.Release(1)
-							if _, err := h.Remove(limacharlie.HiveArgs{
-								HiveName:     namespace,
-								PartitionKey: org.GetOID(),
-								Key:          ruleName,
-							}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
-								l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
-								mError.Lock()
-								lastErr = err
-								mError.Unlock()
-							}
-						}()
+						batchUpdate.DelRecord(limacharlie.RecordID{
+							Hive: limacharlie.HiveID{
+								Name:      limacharlie.HiveName(namespace),
+								Partition: limacharlie.PartitionID(org.GetOID()),
+							},
+							Name: limacharlie.RecordName(ruleName),
+						})
 					}
 				}
 
-				wg.Wait()
+				ops, err := batchUpdate.Execute()
+				if err != nil {
+					l.Logger.Error(fmt.Sprintf("failed to remove rules: %s", err.Error()))
+				}
+				for _, op := range ops {
+					if op.Error != "" && !strings.Contains(op.Error, "RECORD_NOT_FOUND") {
+						l.Logger.Error(fmt.Sprintf("failed to remove rule: %s", err.Error()))
+					}
+				}
 
 				if h, ok := l.EventHandlers[common.EventTypes.Unsubscribe]; ok {
 					if resp := h(ctx, params); resp.Error != "" {
@@ -252,9 +231,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					}
 				}
 
-				if lastErr != nil {
-					return common.Response{Error: lastErr.Error()}
-				}
 				return common.Response{}
 			},
 			common.EventTypes.Update: func(ctx context.Context, params core.EventCallbackParams) common.Response {
