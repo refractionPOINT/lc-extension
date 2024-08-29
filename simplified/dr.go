@@ -2,14 +2,12 @@ package simplified
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"golang.org/x/sync/semaphore"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
@@ -172,9 +170,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				org := params.Org
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
-				var lastErr error
-				mError := sync.Mutex{}
-
 				// Remove the D&R rule we set up.
 				h := limacharlie.NewHiveClient(org)
 				if _, err := h.Remove(limacharlie.HiveArgs{
@@ -183,15 +178,10 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					Key:          l.ruleName,
 				}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
 					l.Logger.Error(fmt.Sprintf("failed to remove scheduling D&R rule: %s", err.Error()))
-					mError.Lock()
-					lastErr = err
-					mError.Unlock()
 				}
 
 				// For every namespace, remove rules with matching tags.
-				sm := semaphore.NewWeighted(100)
-				wg := sync.WaitGroup{}
-				remCtx := context.Background()
+				batchUpdate := h.NewBatchOperations()
 				for namespace := range simplifiedRuleNamespaces {
 					namespace = fmt.Sprintf("dr-%s", namespace)
 					rules, err := h.ListMtd(limacharlie.HiveArgs{
@@ -201,9 +191,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					if err != nil {
 						if !strings.Contains(err.Error(), "UNAUTHORIZED") {
 							l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
-							mError.Lock()
-							lastErr = err
-							mError.Unlock()
 						}
 						continue
 					}
@@ -218,32 +205,25 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 						if !isRemove {
 							continue
 						}
-						if err := sm.Acquire(remCtx, 1); err != nil {
-							mError.Lock()
-							lastErr = err
-							mError.Unlock()
-							continue
-						}
-						wg.Add(1)
-						ruleName := ruleName
-						go func() {
-							defer wg.Done()
-							defer sm.Release(1)
-							if _, err := h.Remove(limacharlie.HiveArgs{
-								HiveName:     namespace,
-								PartitionKey: org.GetOID(),
-								Key:          ruleName,
-							}); err != nil && !strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
-								l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
-								mError.Lock()
-								lastErr = err
-								mError.Unlock()
-							}
-						}()
+						batchUpdate.DelRecord(limacharlie.RecordID{
+							Hive: limacharlie.HiveID{
+								Name:      limacharlie.HiveName(namespace),
+								Partition: limacharlie.PartitionID(org.GetOID()),
+							},
+							Name: limacharlie.RecordName(ruleName),
+						})
 					}
 				}
 
-				wg.Wait()
+				ops, err := batchUpdate.Execute()
+				if err != nil {
+					l.Logger.Error(fmt.Sprintf("failed to remove rules: %s", err.Error()))
+				}
+				for _, op := range ops {
+					if op.Error != "" && !strings.Contains(op.Error, "RECORD_NOT_FOUND") {
+						l.Logger.Error(fmt.Sprintf("failed to remove rule: %s", err.Error()))
+					}
+				}
 
 				if h, ok := l.EventHandlers[common.EventTypes.Unsubscribe]; ok {
 					if resp := h(ctx, params); resp.Error != "" {
@@ -251,9 +231,6 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 					}
 				}
 
-				if lastErr != nil {
-					return common.Response{Error: lastErr.Error()}
-				}
 				return common.Response{}
 			},
 			common.EventTypes.Update: func(ctx context.Context, params core.EventCallbackParams) common.Response {
@@ -285,184 +262,124 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 		return common.Response{Error: err.Error()}
 	}
 
-	wg := sync.WaitGroup{}
 	rulesData, err := l.GetRules(ctx)
 	if err != nil {
 		return common.Response{Error: err.Error()}
 	}
 
-	sm := semaphore.NewWeighted(100)
 	suppTime := l.shimSuppressionTime(config.GlobalSuppressionTime)
 
+	// Apply the suppression time to all rules.
+	batchUpdate := h.NewBatchOperations()
 	for namespace, rules := range rulesData {
-		if _, ok := simplifiedRuleNamespaces[namespace]; !ok {
-			l.Logger.Error(fmt.Sprintf("invalid namespace %s", namespace))
+		// Fetch all the rules in Hive for the given namespace.
+		hiveName := fmt.Sprintf("dr-%s", namespace)
+		existing, err := h.List(limacharlie.HiveArgs{
+			HiveName:     hiveName,
+			PartitionKey: params.Org.GetOID(),
+		})
+		if err != nil {
+			l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
 			continue
 		}
-		namespace = fmt.Sprintf("dr-%s", namespace)
+
+		// Diff the rule contents with the rules in Hive.
 		for ruleName, ruleData := range rules {
-			ruleName, ruleData := ruleName, ruleData
-			if err := sm.Acquire(ctx, 1); err != nil {
-				return common.Response{Error: err.Error()}
-			}
-			l.Logger.Info(fmt.Sprintf("updating rule %s", ruleName))
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				defer sm.Release(1)
-
-				// If suppression is set, modify a copy of the rule data.
-				ruleToSet := ruleData.Data
-				if suppTime != "" {
-					ruleToSet = limacharlie.Dict{}
-					if _, err := ruleToSet.ImportFromStruct(ruleData.Data); err != nil {
-						l.Logger.Error(fmt.Sprintf("failed to duplicate data: %s", err.Error()))
+			// Add in our suppression.
+			ruleToSet := ruleData.Data
+			if suppTime != "" {
+				ruleToSet = limacharlie.Dict{}
+				if _, err := ruleToSet.ImportFromStruct(ruleData.Data); err != nil {
+					l.Logger.Error(fmt.Sprintf("failed to duplicate data: %s", err.Error()))
+					ruleToSet = ruleData.Data
+				} else {
+					if ruleToSet = addSuppression(ruleToSet, suppTime); ruleToSet == nil {
 						ruleToSet = ruleData.Data
-					} else {
-						if ruleToSet = addSuppression(ruleToSet, suppTime); ruleToSet == nil {
-							ruleToSet = ruleData.Data
-						}
 					}
 				}
-				if isDebugLogRules {
-					l.Logger.Info(fmt.Sprintf("rule %s: %s", ruleName, ruleToSet))
-				}
+			}
 
-				// We need to do a transactional update to check if the
-				// rule exists before we set it.
-				if _, err := h.UpdateTx(limacharlie.HiveArgs{
-					HiveName:     namespace,
-					PartitionKey: params.Org.GetOID(),
-					Key:          ruleName,
-				}, func(record *limacharlie.HiveData) (*limacharlie.HiveData, error) {
-					// If the rule does not exist (null), just add
-					// it with the enable by default flag.
-					if record == nil {
-						return &limacharlie.HiveData{
-							Data: ruleToSet,
-							UsrMtd: limacharlie.UsrMtd{
-								Enabled: !config.DisableByDefault,
-								Tags:    l.mergeTags(ruleData.Tags, []string{}),
-							},
-						}, nil
-					}
-					// If the rule exists, only update its data and upsert
-					// its tags. That way if the user disabled it or tagged
-					// it, we leave it that way.
-					record.Data = ruleToSet
-					record.UsrMtd.Tags = l.mergeTags(record.UsrMtd.Tags, ruleData.Tags)
-					return record, nil
-				}); err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to update rule %s: %s", ruleName, err.Error()))
+			// Do we have that rule name in hive already?
+			// If not, we'll add it.
+			// If we do, diff it and update it if needed.
+			if existingRule, ok := existing[ruleName]; !ok {
+				batchUpdate.SetRecord(limacharlie.RecordID{
+					Hive: limacharlie.HiveID{
+						Name:      limacharlie.HiveName(hiveName),
+						Partition: limacharlie.PartitionID(params.Org.GetOID()),
+					},
+					Name: limacharlie.RecordName(ruleName),
+				}, limacharlie.ConfigRecordMutation{
+					Data: ruleToSet,
+					UsrMtd: &limacharlie.UsrMtd{
+						Enabled: !config.DisableByDefault,
+						Tags:    l.mergeTags(ruleData.Tags, []string{}),
+					},
+				})
+				if isDebugLogRules {
+					l.Logger.Info(fmt.Sprintf("adding rule %s: %s", ruleName, ruleToSet))
 				}
-			}()
+			} else if !areEqual(ruleToSet, existingRule.Data) {
+				// The rule is there but has changed.
+				if isDebugLogRules {
+					l.Logger.Info(fmt.Sprintf("updating rule %s: %s", ruleName, ruleToSet))
+				}
+				batchUpdate.SetRecord(limacharlie.RecordID{
+					Hive: limacharlie.HiveID{
+						Name:      limacharlie.HiveName(hiveName),
+						Partition: limacharlie.PartitionID(params.Org.GetOID()),
+					},
+					Name: limacharlie.RecordName(ruleName),
+				}, limacharlie.ConfigRecordMutation{
+					Data: ruleToSet,
+					UsrMtd: &limacharlie.UsrMtd{
+						Enabled: !config.DisableByDefault,
+						Tags:    l.mergeTags(ruleData.Tags, []string{}),
+					},
+				})
+			}
 		}
 
-		// Get the list of rules in prod and check they're all in our local list.
-		// If not, we'll remove them.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			existingRules, err := h.ListMtd(limacharlie.HiveArgs{
-				HiveName:     namespace,
-				PartitionKey: params.Org.GetOID(),
+		// Now check for rules that exist in Hive but not in our list.
+		for ruleName := range existing {
+			if _, ok := rules[ruleName]; ok {
+				continue
+			}
+			// Only delete rules with our tag, this avoids
+			// mistakes where the extension is not Segmented.
+			isRemove := false
+			for _, t := range existing[ruleName].UsrMtd.Tags {
+				if t == l.tag {
+					isRemove = true
+					break
+				}
+			}
+			if !isRemove {
+				continue
+			}
+			batchUpdate.DelRecord(limacharlie.RecordID{
+				Hive: limacharlie.HiveID{
+					Name:      limacharlie.HiveName(hiveName),
+					Partition: limacharlie.PartitionID(params.Org.GetOID()),
+				},
+				Name: limacharlie.RecordName(ruleName),
 			})
-			if err != nil {
-				l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
-				return
-			}
-			for ruleName := range existingRules {
-				if _, ok := rules[ruleName]; ok {
-					continue
-				}
-				// Only delete rules with our tag, this avoids
-				// mistakes where the extension is not Segmented.
-				isRemove := false
-				for _, t := range existingRules[ruleName].UsrMtd.Tags {
-					if t == l.tag {
-						isRemove = true
-						break
-					}
-				}
-				if !isRemove {
-					continue
-				}
-
-				ruleName := ruleName
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					if _, err := h.Remove(limacharlie.HiveArgs{
-						HiveName:     namespace,
-						PartitionKey: params.Org.GetOID(),
-						Key:          ruleName,
-					}); err != nil {
-						l.Logger.Error(fmt.Sprintf("failed to remove rule %s: %s", ruleName, err.Error()))
-					}
-				}()
-			}
-		}()
+		}
 	}
 
-	wg.Wait()
+	// Apply the changes.
+	ops, err := batchUpdate.Execute()
+	if err != nil {
+		l.Logger.Error(fmt.Sprintf("failed to update rules: %s", err.Error()))
+		return common.Response{Error: err.Error()}
+	}
+	for _, op := range ops {
+		if op.Error != "" {
+			l.Logger.Error(fmt.Sprintf("failed to update rule: %s", op.Error))
+		}
+	}
 
 	l.Logger.Info("done updating rules")
-
-	return common.Response{}
-}
-
-func (l *RuleExtension) onInstall(ctx context.Context, org *limacharlie.Organization, data interface{}, conf limacharlie.Dict, idempotentKey string) common.Response {
-	h := limacharlie.NewHiveClient(org)
-
-	config := ruleConfig{}
-	if err := conf.UnMarshalToStruct(&config); err != nil {
-		return common.Response{Error: err.Error()}
-	}
-
-	wg := sync.WaitGroup{}
-	rulesData, err := l.GetRules(ctx)
-	if err != nil {
-		return common.Response{Error: err.Error()}
-	}
-
-	sm := semaphore.NewWeighted(100)
-	trueValue := true
-
-	for namespace, rules := range rulesData {
-		if _, ok := simplifiedRuleNamespaces[namespace]; !ok {
-			l.Logger.Error(fmt.Sprintf("invalid namespace %s", namespace))
-			continue
-		}
-		namespace = fmt.Sprintf("dr-%s", namespace)
-		for ruleName, ruleData := range rules {
-			ruleName, ruleData := ruleName, ruleData
-			if err := sm.Acquire(ctx, 1); err != nil {
-				return common.Response{Error: err.Error()}
-			}
-			l.Logger.Info(fmt.Sprintf("installing rule %s", ruleName))
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				defer sm.Release(1)
-
-				// On Install we just add the rule with the enable by default flag.
-				if _, err := h.Add(limacharlie.HiveArgs{
-					HiveName:     namespace,
-					PartitionKey: org.GetOID(),
-					Key:          ruleName,
-					Data:         ruleData.Data,
-					Enabled:      &trueValue,
-					Tags:         l.mergeTags(ruleData.Tags, []string{}),
-				}); err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to add rule %s: %s", ruleName, err.Error()))
-				}
-			}()
-		}
-	}
-
-	wg.Wait()
-
-	l.Logger.Info("done installing rules")
 
 	return common.Response{}
 }
@@ -531,4 +448,19 @@ func addSuppression(rule limacharlie.Dict, suppressionTime string) limacharlie.D
 		}
 	}
 	return rule
+}
+
+// Compares two dictionaries and their values for equality accounting for field order.
+func areEqual(d1 limacharlie.Dict, d2 limacharlie.Dict) bool {
+	// The json lib will sort keys of maps when serializing (not structs).
+	// So we can just compare the serialized versions.
+	s1, err := json.Marshal(d1)
+	if err != nil {
+		return false
+	}
+	s2, err := json.Marshal(d2)
+	if err != nil {
+		return false
+	}
+	return string(s1) == string(s2)
 }
