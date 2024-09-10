@@ -254,7 +254,7 @@ func respond(w http.ResponseWriter, status int, data interface{}) error {
 	}
 	j := json.NewEncoder(w)
 	if err := j.Encode(data); err != nil {
-		panic(fmt.Sprintf("failed to encode response: %v", err))
+		return fmt.Errorf("failed to encode response: %v", err)
 	}
 	return nil
 }
