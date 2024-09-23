@@ -212,6 +212,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 			}
 
 			// Push the update.
+			isTrue := true
 			if _, err := h.Add(limacharlie.HiveArgs{
 				HiveName:     "lookup",
 				PartitionKey: params.Org.GetOID(),
@@ -219,7 +220,8 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 				Data: limacharlie.Dict{
 					"lookup_data": d,
 				},
-				Tags: []string{l.tag},
+				Tags:    []string{l.tag},
+				Enabled: &isTrue,
 			}); err != nil {
 				l.Logger.Error(fmt.Sprintf("failed to update lookup %s: %s", luName, err.Error()))
 				return
