@@ -263,7 +263,7 @@ func (e *Extension) generateSDK(oad common.OrgAccessData) (*limacharlie.Organiza
 	return limacharlie.NewOrganizationFromClientOptions(limacharlie.ClientOptions{
 		OID: oad.OID,
 		JWT: oad.JWT,
-	}, nil)
+	}, &limacharlie.LCLoggerGCP{})
 }
 
 func unmarshalToStruct(d limacharlie.Dict, s interface{}) (interface{}, error) {
