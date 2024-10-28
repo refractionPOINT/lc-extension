@@ -5,7 +5,7 @@ go 1.22.7
 toolchain go1.23.2
 
 require (
-	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241027235022-431c442a1e38
+	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241028015840-7ab0975f4c98
 	github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed
 )
 
