@@ -42,7 +42,7 @@ type View struct {
 	DefaultRequests []string `json:"default_requests" msgpack:"default_requests"`
 
 	// optional UI view settins: more exist on FE "LayoutOptions" but aren't all exposed via schema
-	FieldColumns int `json:"field_columns" msgpack:"field_columns"`
+	FieldColumns int `json:"field_columns,omitempty" msgpack:"field_columns,omitempty"`
 }
 
 // A request to get the schema required by the Extension for its configuration and requests.
