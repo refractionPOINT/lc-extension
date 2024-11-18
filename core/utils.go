@@ -14,10 +14,10 @@ var (
 )
 
 func UseSecretValue(key string, org *limacharlie.Organization, fn func(val string) error) error {
-	var err error
-	var apiKey string
-	var secretName string
 	if strings.Contains(key, "hive://secret/") {
+		var err error
+		var apiKey string
+		var secretName string
 		for i := 0; i < 2; i++ { // max of two tries
 			// Try to get secret from cache
 			apiKey, secretName, err = GetSecret(key, org)
@@ -42,7 +42,7 @@ func UseSecretValue(key string, org *limacharlie.Organization, fn func(val strin
 	}
 
 	// no retry logic if actual key passed
-	if err = fn(apiKey); err != nil {
+	if err := fn(key); err != nil {
 		return err
 	}
 	return nil
