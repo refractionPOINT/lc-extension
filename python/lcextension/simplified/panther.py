@@ -129,6 +129,12 @@ class PantherExtension(lcextension.Extension):
             self.delete_extension_adapter(sdk)
         except Exception as e:
             self.log(f'failed to delete extension adapter : {e}')
+        
+        hive = limacharlie.Hive(sdk, 'dr-managed', sdk._oid)
+        try:
+            hive.delete(f"panther-{self.extension_name}")
+        except Exception as e:
+            self.log(f"failed to delete detect response for run : {e}")
 
         self.log(f"unsubscribed: org={sdk._oid} data={data} conf={conf}")
         return lcextension.Response()
