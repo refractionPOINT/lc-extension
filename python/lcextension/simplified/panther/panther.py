@@ -151,6 +151,10 @@ class PantherExtension(lcextension.Extension):
         routing = data.get('routing', None)
         if not event:
             return lcextension.Response(error="missing event")
+        
+        # Wrap the event in a pantherEvent object that rules can use.
+        event = pantherEvent(event)
+        
         # Pass the event to all the rules.
         # The panther rule structure is defined here: https://docs.panther.com/detections/rules/python
         for rule_name, rule_content in self.panther_rules.items():
@@ -183,3 +187,21 @@ class PantherExtension(lcextension.Extension):
                 "severity": severity,
                 "alert_context": alert_context,
             })
+
+# The exact event implementation doesn't seem provided in the
+# open source repo, so we will build one inspired by parts of
+# the repo: https://github.com/panther-labs/panther-analysis/blob/8e38626795a1c8ade822fd00e336e9998d4977dc/global_helpers/panther_base_helpers.py#L30
+from collections.abc import Mapping
+from functools import reduce
+class pantherEvent(dict):
+    def deep_get(self, *keys, default=None):
+        """Safely return the value of an arbitrarily nested map
+
+        Inspired by https://bit.ly/3a0hq9E
+        """
+        out = reduce(
+            lambda d, key: d.get(key, default) if isinstance(d, Mapping) else default, keys, self
+        )
+        if out is None:
+            return default
+        return out
