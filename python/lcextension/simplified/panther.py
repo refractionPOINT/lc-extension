@@ -11,16 +11,20 @@ import os
 class PantherExtension(lcextension.Extension):
     def init(self):
 
-        self.extension_name = os.getenv('EXTENSION_NAME', 'panther')
+        self.extension_name = os.getenv('EXTENSION_NAME', None)
+        if not self.extension_name:
+            raise Exception("missing EXTENSION_NAME environment variable")
         self.event_types = [e.strip() for e in os.getenv('EVENT_TYPES', '').split(',')]
+        if len(self.event_types) == 0:
+            raise Exception("missing EVENT_TYPES environment variable")
         self.configSchema = lcextension.SchemaObject()
         self.requestSchema = lcextension.RequestSchemas()
         self.requestSchema.Actions = {
             'run': lcextension.RequestSchema(
                 Label = 'Run Rules',
-                IsUserFacing = True,
+                IsUserFacing = False,
                 ShortDescription = "Run rules",
-                LongDescription = "Run a specific playbook.",
+                LongDescription = "Run a set of rules.",
                 IsImpersonated = False,
                 ParameterDefinitions = lcextension.SchemaObject(
                     Fields = {
@@ -33,7 +37,7 @@ class PantherExtension(lcextension.Extension):
                         "routing": lcextension.SchemaElement(
                             IsList = False,
                             DataType = lcextension.SchemaDataTypes.Object,
-                            DisplayIndex = 1,
+                            DisplayIndex = 2,
                             Description = "the routing from limacharlie",
                         ),
                     },
@@ -145,10 +149,6 @@ class PantherExtension(lcextension.Extension):
     def handleRun(self, sdk, data, conf, res_state):
         event = data.get('event', None)
         routing = data.get('routing', None)
-        evt = {
-            "event": event,
-            "routing": routing,
-        }
         if not event:
             return lcextension.Response(error="missing event")
         # Pass the event to all the rules.
@@ -156,13 +156,32 @@ class PantherExtension(lcextension.Extension):
         for rule_name, rule_content in self.panther_rules.items():
             is_match = False
             try:
-                is_match = rule_content['rule'](evt)
+                is_match = rule_content['rule'](event)
             except Exception as e:
                 self.log(f"failed to run rule {rule_name}: {e}")
                 continue
             if not is_match:
                 continue
             if 'title' in rule_content:
-                title = rule_content['title'](evt)
+                title = rule_content['title'](event)
             else:
                 title = rule_name
+            if 'alert_context' in rule_content:
+                alert_context = rule_content['alert_context'](event)
+            else:
+                alert_context = {}
+            if 'severity' in rule_content:
+                severity = rule_content['severity'](event)
+            else:
+                severity = "DEFAULT"
+
+            # Report the detection via the extension adapter.
+            self.send_to_webhook_adapter(sdk, {
+                "event": event,
+                "routing": routing,
+                "title": title,
+                "severity": severity,
+                "alert_context": alert_context,
+            })
+
+app = PantherExtension(f"ext-panther-{os.getenv('EXTENSION_NAME', None)}", os.environ["LC_SHARED_SECRET"]).getApp()
