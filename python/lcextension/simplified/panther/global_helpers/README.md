@@ -1,0 +1,1 @@
+Helper code is brought in directly from the Panther Apache v2 licensed repository at https://github.com/panther-labs/panther-analysis/tree/develop/global_helpers.

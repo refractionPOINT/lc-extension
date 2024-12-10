@@ -1,5 +1,5 @@
 # Taken from: https://github.com/panther-labs/panther-analysis/blob/develop/rules/slack_rules/slack_app_access_expanded.py
-# from panther_slack_helpers import slack_alert_context
+from panther_slack_helpers import slack_alert_context
 
 ACCESS_EXPANDED_ACTIONS = [
     "app_scopes_expanded",
@@ -21,8 +21,7 @@ def title(event):
 
 
 def alert_context(event):
-    # context = slack_alert_context(event)
-    context = {}
+    context = slack_alert_context(event)
 
     # Diff previous and new scopes
     new_scopes = event.deep_get("details", "new_scopes", default=[])

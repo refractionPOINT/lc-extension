@@ -183,5 +183,3 @@ class PantherExtension(lcextension.Extension):
                 "severity": severity,
                 "alert_context": alert_context,
             })
-
-app = PantherExtension(f"ext-panther-{os.getenv('EXTENSION_NAME', None)}", os.environ["LC_SHARED_SECRET"]).getApp()
