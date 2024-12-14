@@ -73,7 +73,8 @@ The multiplexer is designed as an Extension itself and is designed to be deploye
   "image": "gcr.io/my-project/mycontainer:latest",
   "env": [
     "LC_SHARED_SECRET=aaaaaaaa-aaaa-45aaaa-aaaa-62938a5277a8"
-  ]
+  ],
+  "service_account": "my-service-account@myproject.iam.gserviceaccount.com"
 }
 ```
 

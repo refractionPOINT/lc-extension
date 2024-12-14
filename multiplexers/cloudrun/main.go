@@ -27,13 +27,14 @@ import (
 // This is the definition of a Cloud Run service
 // we can use to create a new service.
 type CloudRunServiceDefinition struct {
-	Image        string   `json:"image"`
-	Env          []string `json:"env"`
-	CPU          string   `json:"cpu"`
-	Memory       string   `json:"memory"`
-	MinInstances int32    `json:"min_instances"`
-	MaxInstances int32    `json:"max_instances"`
-	Timeout      int32    `json:"timeout"`
+	Image          string   `json:"image"`
+	Env            []string `json:"env"`
+	CPU            string   `json:"cpu"`
+	Memory         string   `json:"memory"`
+	MinInstances   int32    `json:"min_instances"`
+	MaxInstances   int32    `json:"max_instances"`
+	Timeout        int32    `json:"timeout"`
+	ServiceAccount string   `json:"service_account"`
 }
 
 type CloudRunMultiplexer struct {
@@ -325,6 +326,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 				MinInstanceCount: e.serviceDefinition.MinInstances,
 				MaxInstanceCount: e.serviceDefinition.MaxInstances,
 			},
+			ServiceAccount: e.serviceDefinition.ServiceAccount,
 		},
 	}
 
