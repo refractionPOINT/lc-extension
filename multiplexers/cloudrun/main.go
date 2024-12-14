@@ -16,6 +16,7 @@ import (
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
+	"github.com/refractionPOINT/lc-extension/server/webserver"
 
 	run "cloud.google.com/go/run/apiv2"
 	"cloud.google.com/go/run/apiv2/runpb"
@@ -203,6 +204,8 @@ func main() {
 	if err := Extension.Init(); err != nil {
 		panic(err)
 	}
+
+	webserver.RunExtension(Extension)
 }
 
 // This example defines a simple http handler that can now be used
