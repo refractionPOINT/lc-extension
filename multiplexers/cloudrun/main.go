@@ -175,30 +175,7 @@ func main() {
 		},
 		RequestHandlers: requestHandlers,
 		// Events occuring in LimaCharlie that we need to be made aware of.
-		EventHandlers: map[common.EventName]core.EventCallback{
-			// An Org subscribed.
-			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
-				Extension.Info(fmt.Sprintf("subscribe to %s", params.Org.GetOID()))
-				// Check if the service exists.
-				// If it does, forward the request.
-
-				// If it doesn't, create it.
-
-				// Return the response.
-				return common.Response{}
-			},
-			// An Org unsubscribed.
-			common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
-				Extension.Info(fmt.Sprintf("unsubscribe from %s", params.Org.GetOID()))
-				// Check if the service exists.
-				// If it does, forward the request.
-
-				// On success, always delete the service.
-
-				// Return the response.
-				return common.Response{}
-			},
-		},
+		EventHandlers: eventHandlers,
 	}
 	// Start processing.
 	if err := Extension.Init(); err != nil {
