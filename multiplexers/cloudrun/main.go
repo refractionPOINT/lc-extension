@@ -1,4 +1,4 @@
-package ext
+package main
 
 import (
 	"bytes"
@@ -54,7 +54,7 @@ type CloudRunMultiplexer struct {
 
 var Extension *CloudRunMultiplexer
 
-func init() {
+func main() {
 	// Because this will be configured entirely through environment variables,
 	// we will parse the LC_REQUEST_SCHEMA environment variable to get the
 	// schema of the requests this Extension will receive. We do the same with
