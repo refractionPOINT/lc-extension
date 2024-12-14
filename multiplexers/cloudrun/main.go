@@ -307,7 +307,6 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 
 	// Prepare the service configuration
 	service := &runpb.Service{
-		Name: serviceName,
 		Template: &runpb.RevisionTemplate{
 			Containers: []*runpb.Container{
 				{
