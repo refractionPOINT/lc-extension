@@ -176,6 +176,9 @@ func main() {
 		RequestHandlers: requestHandlers,
 		// Events occuring in LimaCharlie that we need to be made aware of.
 		EventHandlers: eventHandlers,
+		ErrorHandler: func(err *common.ErrorReportMessage) {
+			Extension.Error(fmt.Sprintf("error: %s", err.Error))
+		},
 	}
 	// Start processing.
 	if err := Extension.Init(); err != nil {
