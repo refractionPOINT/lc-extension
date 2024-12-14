@@ -143,7 +143,14 @@ func main() {
 	}
 
 	// Dynamically add the request handlers for the events.
-	eventHandlers := map[common.EventName]core.EventCallback{}
+	eventHandlers := map[common.EventName]core.EventCallback{
+		common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+			return Extension.OnGenericEvent(ctx, common.EventTypes.Subscribe, params)
+		},
+		common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+			return Extension.OnGenericEvent(ctx, common.EventTypes.Unsubscribe, params)
+		},
+	}
 	for _, event := range Extension.RequiredEvents {
 		eventHandlers[event] = func(ctx context.Context, params core.EventCallbackParams) common.Response {
 			return Extension.OnGenericEvent(ctx, event, params)
