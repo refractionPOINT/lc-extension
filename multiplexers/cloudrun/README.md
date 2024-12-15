@@ -85,3 +85,5 @@ The multiplexer is designed as an Extension itself and is designed to be deploye
 `PROVISION_PROJECT_ID`: `my-project`
 
 `PROVISION_REGION`: `us-central1`
+
+`LC_WORKER_SHARED_SECRET`: `1234`
