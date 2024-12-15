@@ -52,6 +52,9 @@ type CloudRunMultiplexer struct {
 
 	// HTTP Client to use to forward requests to the service.
 	httpClient *http.Client
+
+	// The shared secret that the worker will use to authenticate with the multiplexer.
+	workerSharedSecret string
 }
 
 var Extension *CloudRunMultiplexer
@@ -101,6 +104,10 @@ func main() {
 	if err := json.Unmarshal([]byte(re), &requiredEvents); err != nil {
 		panic(err)
 	}
+	ws := os.Getenv("LC_WORKER_SHARED_SECRET")
+	if ws == "" {
+		panic("LC_WORKER_SHARED_SECRET is not set")
+	}
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: os.Getenv("REDIS_ADDR"),
 	})
@@ -114,7 +121,7 @@ func main() {
 	Extension = &CloudRunMultiplexer{
 		core.Extension{
 			ExtensionName:  en,
-			SecretKey:      os.Getenv("SHARED_SECRET"),
+			SecretKey:      os.Getenv("LC_SHARED_SECRET"),
 			ConfigSchema:   configSchema,
 			RequestSchema:  reqSchema,
 			ViewsSchema:    viewsSchema,
@@ -128,6 +135,7 @@ func main() {
 		&http.Client{
 			Timeout: 10 * time.Minute,
 		},
+		ws,
 	}
 
 	// We must assemble the callbacks for this Extension from the
@@ -302,7 +310,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 	// Create a new Cloud Run client
 	runClient, err := run.NewServicesClient(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create Cloud Run client: %v", err)
+		return "", "", fmt.Errorf("NewServicesClient(): %v", err)
 	}
 	defer runClient.Close()
 
@@ -318,7 +326,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 							"memory": e.serviceDefinition.Memory,
 						},
 					},
-					Env: make([]*runpb.EnvVar, len(e.serviceDefinition.Env)),
+					Env: make([]*runpb.EnvVar, len(e.serviceDefinition.Env)+1),
 				},
 			},
 			Timeout: durationpb.New(time.Duration(e.serviceDefinition.Timeout) * time.Second),
@@ -342,6 +350,12 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 			}
 		}
 	}
+	service.Template.Containers[0].Env[len(e.serviceDefinition.Env)] = &runpb.EnvVar{
+		Name: "FROM_LC_OID",
+		Values: &runpb.EnvVar_Value{
+			Value: oid,
+		},
+	}
 
 	// Create the service
 	req := &runpb.CreateServiceRequest{
@@ -352,7 +366,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 
 	op, err := runClient.CreateService(ctx, req)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create service: %v", err)
+		return "", "", fmt.Errorf("CreateService(): %v", err)
 	}
 
 	// Wait for the operation to complete
@@ -363,7 +377,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 
 	// Store the service information in Redis
 	key := serviceKey(oid)
-	value := generateServiceKeyValue(projectID, region, serviceName)
+	value := generateServiceKeyValue(projectID, region, resp.Uri)
 	if err := e.redisClient.Set(ctx, key, value, 0).Err(); err != nil {
 		// If we fail to store in Redis, try to clean up the service
 		deleteReq := &runpb.DeleteServiceRequest{
