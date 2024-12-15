@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/refractionPOINT/lc-extension/core"
 	"github.com/refractionPOINT/lc-extension/server/webserver"
 
+	iampb "cloud.google.com/go/iam/apiv1/iampb"
 	run "cloud.google.com/go/run/apiv2"
 	"cloud.google.com/go/run/apiv2/runpb"
 	"github.com/go-redis/redis/v8"
@@ -358,8 +360,9 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 	}
 
 	// Create the service
+	parent := fmt.Sprintf("projects/%s/locations/%s", projectID, region)
 	req := &runpb.CreateServiceRequest{
-		Parent:    fmt.Sprintf("projects/%s/locations/%s", projectID, region),
+		Parent:    parent,
 		ServiceId: serviceName,
 		Service:   service,
 	}
@@ -389,7 +392,42 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 		return "", "", fmt.Errorf("failed to store service in Redis: %v", err)
 	}
 
+	// Make the service public.
+	if err := makeServicePublic(ctx, runClient, fmt.Sprintf("%s/services/%s", parent, serviceName)); err != nil {
+		return "", "", fmt.Errorf("failed to make service public: %v", err)
+	}
+
 	return projectID, serviceName, nil
+}
+
+func makeServicePublic(ctx context.Context, client *run.ServicesClient, serviceName string) error {
+	// Get the current IAM policy
+	getPolicyReq := &iampb.GetIamPolicyRequest{
+		Resource: serviceName,
+	}
+	policy, err := client.GetIamPolicy(ctx, getPolicyReq)
+	if err != nil {
+		return fmt.Errorf("failed to get IAM policy: %v", err)
+	}
+
+	// Modify the policy to add roles/run.invoker for allUsers
+	binding := &iampb.Binding{
+		Role:    "roles/run.invoker",
+		Members: []string{"allUsers"},
+	}
+	policy.Bindings = append(policy.Bindings, binding)
+
+	// Set the updated IAM policy
+	setPolicyReq := &iampb.SetIamPolicyRequest{
+		Resource: serviceName,
+		Policy:   policy,
+	}
+	_, err = client.SetIamPolicy(ctx, setPolicyReq)
+	if err != nil {
+		return fmt.Errorf("failed to set IAM policy: %v", err)
+	}
+
+	return nil
 }
 
 func (e *CloudRunMultiplexer) deleteService(oid string) error {
@@ -496,9 +534,14 @@ func (e *CloudRunMultiplexer) forwardHTTP(ctx context.Context, serviceURL string
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("io.ReadAll: %v", err)
+	}
+
 	response := &common.Response{}
-	if err := json.NewDecoder(resp.Body).Decode(response); err != nil {
-		return nil, fmt.Errorf("json.Decode: %v", err)
+	if err := json.Unmarshal(bodyBytes, response); err != nil {
+		return nil, fmt.Errorf("json.Unmarshal: %v (received: %s)", err, string(bodyBytes))
 	}
 
 	return response, nil
