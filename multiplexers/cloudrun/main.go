@@ -548,7 +548,7 @@ func (e *CloudRunMultiplexer) forwardHTTP(ctx context.Context, serviceURL string
 }
 
 func (e *CloudRunMultiplexer) signForSelf(data []byte) string {
-	mac := hmac.New(sha256.New, []byte(e.SecretKey))
+	mac := hmac.New(sha256.New, []byte(e.workerSharedSecret))
 	mac.Write(data)
 	return hex.EncodeToString(mac.Sum(nil))
 }
