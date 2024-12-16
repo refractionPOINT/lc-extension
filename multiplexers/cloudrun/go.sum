@@ -126,8 +126,8 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241116003410-a5091d9de070 h1:Z5KD/MdzwoTgNLI2itTQeP0I9SlJOQDIZ8Q/ovvMoMA=
 github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241116003410-a5091d9de070/go.mod h1:naVfa6GlqyoNvYGA/hFAQNu6baAapQOoPDbk5UzwrBg=
-github.com/refractionPOINT/lc-extension v0.0.0-20241216003141-d9a3ebe06509 h1:2EZvu29T8bXt64XQ0P7JPylkagFswP+mgJCsHWirK6k=
-github.com/refractionPOINT/lc-extension v0.0.0-20241216003141-d9a3ebe06509/go.mod h1:kNQfaBSAVBYbEah6L/wX2VAl0YRddyS+oXRUqcwEa48=
+github.com/refractionPOINT/lc-extension v0.0.0-20241216004754-7c41f751af2b h1:W8QeQa/gfGfod4Qx9ceIONbjT+fRUezNmJhUqYCU/1I=
+github.com/refractionPOINT/lc-extension v0.0.0-20241216004754-7c41f751af2b/go.mod h1:kNQfaBSAVBYbEah6L/wX2VAl0YRddyS+oXRUqcwEa48=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
 github.com/rs/xid v1.5.0/go.mod h1:trrq9SKmegXys3aeAKXMUTdJsYXVwGY3RLcfgqegfbg=
