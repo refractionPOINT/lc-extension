@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"syscall"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
