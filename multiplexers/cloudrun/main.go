@@ -106,6 +106,7 @@ func main() {
 	if err := json.Unmarshal([]byte(re), &requiredEvents); err != nil {
 		panic(err)
 	}
+	requiredEvents = append(requiredEvents, common.EventTypes.Subscribe, common.EventTypes.Unsubscribe)
 	ws := os.Getenv("LC_WORKER_SHARED_SECRET")
 	if ws == "" {
 		panic("LC_WORKER_SHARED_SECRET is not set")

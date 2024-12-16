@@ -170,7 +170,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// If the request struct is nil, we will unmarshal into a dict.
 		var tmpData interface{}
-		if rcb.RequestStruct == nil || reflect.ValueOf(rcb.RequestStruct).IsNil() {
+		if rcb.RequestStruct == nil || (reflect.ValueOf(i).Kind() == reflect.Ptr && reflect.ValueOf(tmpData).IsNil()) {
 			tmpData = message.Request.Data
 		} else {
 			tmpData, err = unmarshalToStruct(message.Request.Data, rcb.RequestStruct)
