@@ -3,10 +3,11 @@ module github.com/refractionPOINT/lc-extension/multiplexers/cloudrun
 go 1.23.3
 
 require (
+	cloud.google.com/go/iam v1.2.2
 	cloud.google.com/go/run v1.8.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241116003410-a5091d9de070
-	github.com/refractionPOINT/lc-extension v0.0.0-20241118223211-65ef1942eee2
+	github.com/refractionPOINT/lc-extension v0.0.0-20241216003141-d9a3ebe06509
 	google.golang.org/protobuf v1.35.2
 )
 
@@ -16,7 +17,6 @@ require (
 	cloud.google.com/go/auth v0.10.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.5 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
-	cloud.google.com/go/iam v1.2.2 // indirect
 	cloud.google.com/go/longrunning v0.6.2 // indirect
 	cloud.google.com/go/monitoring v1.21.2 // indirect
 	cloud.google.com/go/storage v1.47.0 // indirect
