@@ -102,11 +102,14 @@ func main() {
 
 	// Make a request to the reference service to get the configuration by getting
 	// a SchemaRequest.
-	sr := common.SchemaRequestMessage{}
+	req := common.Message{
+		Version:       core.PROTOCOL_VERSION,
+		SchemaRequest: &common.SchemaRequestMessage{},
+	}
 	sc := &http.Client{
 		Timeout: 10 * time.Minute,
 	}
-	ss, err := json.Marshal(sr)
+	ss, err := json.Marshal(&req)
 	if err != nil {
 		panic(err)
 	}
