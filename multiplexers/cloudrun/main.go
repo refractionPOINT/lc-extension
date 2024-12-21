@@ -297,7 +297,7 @@ func (e *CloudRunMultiplexer) OnGenericEvent(ctx context.Context, eventName comm
 	return *response
 }
 
-// In redis, the key is the OID and the values are the Project ID, Region, and Service URL.
+// In Datastore, the key is the OID and the values are the Project ID, Region, and Service URL.
 // Example: "9f3888dd-ac17-4593-bd8c-efbcac12bfca => 1234567890:us-central1:https://my_extension-9f3888dd-ac17-4593-bd8c-efbcac12bfca.a.run.app"
 // We do this because there is a maximum number of Cloud Run services per project. So we might
 // have to expand into new projects.
@@ -414,12 +414,12 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 		Region:    region,
 		Name:      serviceName,
 	}); err != nil {
-		// If we fail to store in Redis, try to clean up the service
+		// If we fail to store in Datastore, try to clean up the service
 		deleteReq := &runpb.DeleteServiceRequest{
 			Name: resp.Name,
 		}
 		if _, err := runClient.DeleteService(ctx, deleteReq); err != nil {
-			e.Error(fmt.Sprintf("failed to cleanup service after Redis error: %v", err))
+			e.Error(fmt.Sprintf("failed to cleanup service after Datastore error: %v", err))
 		}
 		return "", "", fmt.Errorf("failed to store service in Datastore: %v", err)
 	}
