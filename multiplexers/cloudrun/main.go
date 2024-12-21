@@ -71,7 +71,7 @@ type CloudRunMultiplexer struct {
 type ServiceDefinition struct {
 	ProjectID string `json:"project_id" datastore:"project_id"`
 	Region    string `json:"region" datastore:"region"`
-	Name      string `json:"name" datastore:"name"`
+	URL       string `json:"name" datastore:"name"`
 }
 
 var Extension *CloudRunMultiplexer
@@ -320,7 +320,7 @@ func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, er
 		ok = false
 	}
 	if ok {
-		return def.ProjectID, def.Region, def.Name, nil
+		return def.ProjectID, def.Region, def.URL, nil
 	}
 
 	if err := e.datastoreClient.Get(context.Background(), datastore.NameKey("service", oid, nil), &def); err != nil {
@@ -329,7 +329,7 @@ func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, er
 	e.serviceCacheMutex.Lock()
 	e.serviceCache[oid] = def
 	e.serviceCacheMutex.Unlock()
-	return def.ProjectID, def.Region, def.Name, nil
+	return def.ProjectID, def.Region, def.URL, nil
 }
 
 func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) {
@@ -412,7 +412,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 	if _, err := e.datastoreClient.Put(ctx, datastore.NameKey("service", oid, nil), &ServiceDefinition{
 		ProjectID: projectID,
 		Region:    region,
-		Name:      serviceName,
+		URL:       resp.Uri,
 	}); err != nil {
 		// If we fail to store in Datastore, try to clean up the service
 		deleteReq := &runpb.DeleteServiceRequest{
