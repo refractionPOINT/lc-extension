@@ -481,7 +481,19 @@ func (e *CloudRunMultiplexer) deleteService(oid string) error {
 	}
 
 	_, err = runClient.DeleteService(ctx, req)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to delete service: %v", err)
+	}
+
+	if err := e.datastoreClient.Delete(ctx, datastore.NameKey("service", oid, nil)); err != nil {
+		return fmt.Errorf("failed to delete service from Datastore: %v", err)
+	}
+
+	e.serviceCacheMutex.Lock()
+	delete(e.serviceCache, oid)
+	e.serviceCacheMutex.Unlock()
+
+	return nil
 }
 
 func (e *CloudRunMultiplexer) forwardRequest(ctx context.Context, action string, params core.RequestCallbackParams) (*common.Response, error) {
