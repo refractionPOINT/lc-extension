@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
@@ -58,6 +59,10 @@ type CloudRunMultiplexer struct {
 
 	// The shared secret that the worker will use to authenticate with the multiplexer.
 	workerSharedSecret string
+
+	// Cache the service definitions in memory.
+	serviceCache      map[string]ServiceDefinition
+	serviceCacheMutex sync.RWMutex
 }
 
 type ServiceDefinition struct {
@@ -160,6 +165,8 @@ func main() {
 			Timeout: 10 * time.Minute,
 		},
 		ws,
+		make(map[string]ServiceDefinition),
+		sync.RWMutex{},
 	}
 
 	// We must assemble the callbacks for this Extension from the
@@ -291,20 +298,24 @@ func (e *CloudRunMultiplexer) OnGenericEvent(ctx context.Context, eventName comm
 // We do this because there is a maximum number of Cloud Run services per project. So we might
 // have to expand into new projects.
 
-func serviceKey(oid string) string {
-	return oid
-}
-
 func (e *CloudRunMultiplexer) generateServiceName(oid string) string {
 	return fmt.Sprintf("%s-%s", e.ExtensionName, oid)
 }
 
 func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, error) {
-	key := serviceKey(oid)
-	def := ServiceDefinition{}
-	if err := e.datastoreClient.Get(context.Background(), datastore.NameKey("service", key, nil), &def); err != nil {
+	e.serviceCacheMutex.RLock()
+	def, ok := e.serviceCache[oid]
+	e.serviceCacheMutex.RUnlock()
+	if ok {
+		return def.ProjectID, def.Region, def.Name, nil
+	}
+
+	if err := e.datastoreClient.Get(context.Background(), datastore.NameKey("service", oid, nil), &def); err != nil {
 		return "", "", "", fmt.Errorf("failed to get service: %v", err)
 	}
+	e.serviceCacheMutex.Lock()
+	e.serviceCache[oid] = def
+	e.serviceCacheMutex.Unlock()
 	return def.ProjectID, def.Region, def.Name, nil
 }
 
@@ -384,10 +395,8 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 		return "", "", fmt.Errorf("failed to wait for service creation: %v", err)
 	}
 
-	// Store the service information in Redis
-	key := serviceKey(oid)
-
-	if _, err := e.datastoreClient.Put(ctx, datastore.NameKey("service", key, nil), ServiceDefinition{
+	// Store the service information in Datastore
+	if _, err := e.datastoreClient.Put(ctx, datastore.NameKey("service", oid, nil), ServiceDefinition{
 		ProjectID: projectID,
 		Region:    region,
 		Name:      serviceName,
