@@ -3,9 +3,9 @@ module github.com/refractionPOINT/lc-extension/multiplexers/cloudrun
 go 1.23.3
 
 require (
+	cloud.google.com/go/datastore v1.20.0
 	cloud.google.com/go/iam v1.2.2
 	cloud.google.com/go/run v1.8.0
-	github.com/go-redis/redis/v8 v8.11.5
 	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241116003410-a5091d9de070
 	github.com/refractionPOINT/lc-extension v0.0.0-20241216004754-7c41f751af2b
 	google.golang.org/protobuf v1.35.2
@@ -27,7 +27,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/envoyproxy/go-control-plane v0.13.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

@@ -19,10 +19,10 @@ import (
 	"github.com/refractionPOINT/lc-extension/core"
 	"github.com/refractionPOINT/lc-extension/server/webserver"
 
+	"cloud.google.com/go/datastore"
 	iampb "cloud.google.com/go/iam/apiv1/iampb"
 	run "cloud.google.com/go/run/apiv2"
 	"cloud.google.com/go/run/apiv2/runpb"
-	"github.com/go-redis/redis/v8"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -43,7 +43,8 @@ type CloudRunMultiplexer struct {
 	core.Extension
 	limacharlie.LCLoggerGCP
 
-	redisClient *redis.Client
+	// Datastore client used to store and retrieve service information.
+	datastoreClient *datastore.Client
 
 	// The project ID where we will provision new Cloud Run services.
 	provisionProjectID string
@@ -57,6 +58,12 @@ type CloudRunMultiplexer struct {
 
 	// The shared secret that the worker will use to authenticate with the multiplexer.
 	workerSharedSecret string
+}
+
+type ServiceDefinition struct {
+	ProjectID string `json:"project_id" datastore:"project_id"`
+	Region    string `json:"region" datastore:"region"`
+	Name      string `json:"name" datastore:"name"`
 }
 
 var Extension *CloudRunMultiplexer
@@ -95,9 +102,9 @@ func main() {
 		panic("PROVISION_REGION is not set")
 	}
 
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		panic("REDIS_ADDR is not set")
+	dsClient, err := datastore.NewClient(context.Background(), provProjectID)
+	if err != nil {
+		panic(err)
 	}
 
 	// Make a request to the reference service to get the configuration by getting
@@ -131,12 +138,6 @@ func main() {
 		panic(err)
 	}
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: redisAddr,
-	})
-	if err := redisClient.Ping(context.Background()).Err(); err != nil {
-		panic(err)
-	}
 	serviceDefinition := CloudRunServiceDefinition{}
 	if err := json.Unmarshal([]byte(os.Getenv("SERVICE_DEFINITION")), &serviceDefinition); err != nil {
 		panic(err)
@@ -151,7 +152,7 @@ func main() {
 			RequiredEvents: srResp.RequiredEvents,
 		},
 		limacharlie.LCLoggerGCP{},
-		redisClient,
+		dsClient,
 		provProjectID,
 		provRegion,
 		serviceDefinition,
@@ -285,28 +286,13 @@ func (e *CloudRunMultiplexer) OnGenericEvent(ctx context.Context, eventName comm
 	return *response
 }
 
-// In redis, the key is the service:OID and the value is a string of the Project ID, Region, and Service URL.
-// Example: "service:{9f3888dd-ac17-4593-bd8c-efbcac12bfca} => 1234567890:us-central1:https://my_extension-9f3888dd-ac17-4593-bd8c-efbcac12bfca.a.run.app"
+// In redis, the key is the OID and the values are the Project ID, Region, and Service URL.
+// Example: "9f3888dd-ac17-4593-bd8c-efbcac12bfca => 1234567890:us-central1:https://my_extension-9f3888dd-ac17-4593-bd8c-efbcac12bfca.a.run.app"
 // We do this because there is a maximum number of Cloud Run services per project. So we might
 // have to expand into new projects.
 
-func parseServiceKeyValue(key string) (string, string, string) {
-	parts := strings.SplitN(key, ":", 3)
-	if len(parts) != 3 {
-		return "", "", ""
-	}
-	projectID := parts[0]
-	region := parts[1]
-	serviceURL := parts[2]
-	return projectID, region, serviceURL
-}
-
-func serviceKey(serviceName string) string {
-	return fmt.Sprintf("service:{%s}", serviceName)
-}
-
-func generateServiceKeyValue(projectID string, region string, serviceName string) string {
-	return fmt.Sprintf("%s:%s:%s", projectID, region, serviceName)
+func serviceKey(oid string) string {
+	return oid
 }
 
 func (e *CloudRunMultiplexer) generateServiceName(oid string) string {
@@ -315,12 +301,11 @@ func (e *CloudRunMultiplexer) generateServiceName(oid string) string {
 
 func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, error) {
 	key := serviceKey(oid)
-	value, err := e.redisClient.Get(context.Background(), key).Result()
-	if err != nil {
-		return "", "", "", err
+	def := ServiceDefinition{}
+	if err := e.datastoreClient.Get(context.Background(), datastore.NameKey("service", key, nil), &def); err != nil {
+		return "", "", "", fmt.Errorf("failed to get service: %v", err)
 	}
-	projectID, region, serviceURL := parseServiceKeyValue(value)
-	return projectID, region, serviceURL, nil
+	return def.ProjectID, def.Region, def.Name, nil
 }
 
 func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) {
@@ -401,8 +386,12 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 
 	// Store the service information in Redis
 	key := serviceKey(oid)
-	value := generateServiceKeyValue(projectID, region, resp.Uri)
-	if err := e.redisClient.Set(ctx, key, value, 0).Err(); err != nil {
+
+	if _, err := e.datastoreClient.Put(ctx, datastore.NameKey("service", key, nil), ServiceDefinition{
+		ProjectID: projectID,
+		Region:    region,
+		Name:      serviceName,
+	}); err != nil {
 		// If we fail to store in Redis, try to clean up the service
 		deleteReq := &runpb.DeleteServiceRequest{
 			Name: resp.Name,
@@ -410,7 +399,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 		if _, err := runClient.DeleteService(ctx, deleteReq); err != nil {
 			e.Error(fmt.Sprintf("failed to cleanup service after Redis error: %v", err))
 		}
-		return "", "", fmt.Errorf("failed to store service in Redis: %v", err)
+		return "", "", fmt.Errorf("failed to store service in Datastore: %v", err)
 	}
 
 	// Make the service public.
