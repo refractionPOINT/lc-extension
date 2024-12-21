@@ -71,7 +71,7 @@ type CloudRunMultiplexer struct {
 type ServiceDefinition struct {
 	ProjectID string `json:"project_id" datastore:"project_id"`
 	Region    string `json:"region" datastore:"region"`
-	URL       string `json:"name" datastore:"name"`
+	URL       string `json:"url" datastore:"url"`
 }
 
 var Extension *CloudRunMultiplexer
