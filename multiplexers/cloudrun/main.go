@@ -396,7 +396,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 	}
 
 	// Store the service information in Datastore
-	if _, err := e.datastoreClient.Put(ctx, datastore.NameKey("service", oid, nil), ServiceDefinition{
+	if _, err := e.datastoreClient.Put(ctx, datastore.NameKey("service", oid, nil), &ServiceDefinition{
 		ProjectID: projectID,
 		Region:    region,
 		Name:      serviceName,
