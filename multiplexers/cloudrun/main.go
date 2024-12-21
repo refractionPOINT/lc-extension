@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
@@ -60,7 +61,7 @@ type CloudRunMultiplexer struct {
 	httpClient *http.Client
 
 	// The shared secret that the worker will use to authenticate with the multiplexer.
-	workerSharedSecret string
+	refereceSharedSecret string
 
 	// Cache the service definitions in memory.
 	serviceCache      map[string]ServiceDefinition
@@ -72,6 +73,7 @@ type ServiceDefinition struct {
 	ProjectID string `json:"project_id" datastore:"project_id"`
 	Region    string `json:"region" datastore:"region"`
 	URL       string `json:"url" datastore:"url"`
+	Secret    string `json:"secret" datastore:"secret"`
 }
 
 var Extension *CloudRunMultiplexer
@@ -207,7 +209,7 @@ func main() {
 		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config limacharlie.Dict) common.Response {
 			Extension.Info(fmt.Sprintf("validate config from %s", org.GetOID()))
 			// Resolve the Cloud Run service for this OID.
-			_, _, serviceURL, err := Extension.getService(org.GetOID())
+			_, _, serviceURL, secret, err := Extension.getService(org.GetOID())
 			if err != nil {
 				return common.Response{
 					Error: fmt.Sprintf("failed to get service: %v", err),
@@ -215,7 +217,7 @@ func main() {
 			}
 
 			// Forward the request.
-			response, err := Extension.forwardConfigValidation(ctx, org, serviceURL, config)
+			response, err := Extension.forwardConfigValidation(ctx, org, serviceURL, secret, config)
 			if err != nil {
 				return common.Response{
 					Error: fmt.Sprintf("failed to forward config validation: %v", err),
@@ -306,7 +308,7 @@ func (e *CloudRunMultiplexer) generateServiceName(oid string) string {
 	return fmt.Sprintf("%s-%s", e.ExtensionName, oid)
 }
 
-func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, error) {
+func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, string, error) {
 	e.serviceCacheMutex.RLock()
 	def, ok := e.serviceCache[oid]
 	lastServiceUpdate := e.lastServiceUpdate
@@ -320,16 +322,16 @@ func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, er
 		ok = false
 	}
 	if ok {
-		return def.ProjectID, def.Region, def.URL, nil
+		return def.ProjectID, def.Region, def.URL, def.Secret, nil
 	}
 
 	if err := e.datastoreClient.Get(context.Background(), datastore.NameKey("service", oid, nil), &def); err != nil {
-		return "", "", "", fmt.Errorf("failed to get service: %v", err)
+		return "", "", "", "", fmt.Errorf("failed to get service: %v", err)
 	}
 	e.serviceCacheMutex.Lock()
 	e.serviceCache[oid] = def
 	e.serviceCacheMutex.Unlock()
-	return def.ProjectID, def.Region, def.URL, nil
+	return def.ProjectID, def.Region, def.URL, def.Secret, nil
 }
 
 func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) {
@@ -413,6 +415,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 		ProjectID: projectID,
 		Region:    region,
 		URL:       resp.Uri,
+		Secret:    uuid.New().String(),
 	}); err != nil {
 		// If we fail to store in Datastore, try to clean up the service
 		deleteReq := &runpb.DeleteServiceRequest{
@@ -463,7 +466,7 @@ func makeServicePublic(ctx context.Context, client *run.ServicesClient, serviceN
 }
 
 func (e *CloudRunMultiplexer) deleteService(oid string) error {
-	projectID, region, _, err := e.getService(oid)
+	projectID, region, _, _, err := e.getService(oid)
 	if err != nil {
 		return err
 	}
@@ -497,7 +500,7 @@ func (e *CloudRunMultiplexer) deleteService(oid string) error {
 }
 
 func (e *CloudRunMultiplexer) forwardRequest(ctx context.Context, action string, params core.RequestCallbackParams) (*common.Response, error) {
-	_, _, serviceURL, err := e.getService(params.Org.GetOID())
+	_, _, serviceURL, secret, err := e.getService(params.Org.GetOID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service: %v", err)
 	}
@@ -518,10 +521,10 @@ func (e *CloudRunMultiplexer) forwardRequest(ctx context.Context, action string,
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return forwardHTTP(ctx, []byte(e.workerSharedSecret), e.httpClient, serviceURL, body)
+	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 }
 
-func (e *CloudRunMultiplexer) forwardConfigValidation(ctx context.Context, org *limacharlie.Organization, serviceURL string, config limacharlie.Dict) (*common.Response, error) {
+func (e *CloudRunMultiplexer) forwardConfigValidation(ctx context.Context, org *limacharlie.Organization, serviceURL string, secret string, config limacharlie.Dict) (*common.Response, error) {
 	newReq := common.Message{
 		Version:        core.PROTOCOL_VERSION,
 		IdempotencyKey: "",
@@ -537,11 +540,11 @@ func (e *CloudRunMultiplexer) forwardConfigValidation(ctx context.Context, org *
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return forwardHTTP(ctx, []byte(e.workerSharedSecret), e.httpClient, serviceURL, body)
+	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 }
 
 func (e *CloudRunMultiplexer) forwardEvent(ctx context.Context, eventName common.EventName, params core.EventCallbackParams) (*common.Response, error) {
-	_, _, serviceURL, err := e.getService(params.Org.GetOID())
+	_, _, serviceURL, secret, err := e.getService(params.Org.GetOID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service: %v", err)
 	}
@@ -562,7 +565,7 @@ func (e *CloudRunMultiplexer) forwardEvent(ctx context.Context, eventName common
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return forwardHTTP(ctx, []byte(e.workerSharedSecret), e.httpClient, serviceURL, body)
+	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 }
 
 func forwardHTTP(ctx context.Context, secret []byte, client *http.Client, serviceURL string, body []byte) (*common.Response, error) {
