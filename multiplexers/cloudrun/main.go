@@ -292,6 +292,10 @@ func (e *CloudRunMultiplexer) OnGenericEvent(ctx context.Context, eventName comm
 	// Also always forward the event to the service.
 	response, err := e.forwardEvent(ctx, eventName, params)
 	if err != nil {
+		if eventName == common.EventTypes.Subscribe {
+			// There was an error creating the service, so we need to delete it.
+			e.deleteService(params.Org.GetOID())
+		}
 		return common.Response{
 			Error: fmt.Sprintf("failed to forward event: %v", err),
 		}
