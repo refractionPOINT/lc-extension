@@ -27,6 +27,8 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+const serviceCacheTTL = 10 * time.Second
+
 // This is the definition of a Cloud Run service
 // we can use to create a new service.
 type CloudRunServiceDefinition struct {
@@ -63,6 +65,7 @@ type CloudRunMultiplexer struct {
 	// Cache the service definitions in memory.
 	serviceCache      map[string]ServiceDefinition
 	serviceCacheMutex sync.RWMutex
+	lastServiceUpdate time.Time
 }
 
 type ServiceDefinition struct {
@@ -167,6 +170,7 @@ func main() {
 		ws,
 		make(map[string]ServiceDefinition),
 		sync.RWMutex{},
+		time.Time{},
 	}
 
 	// We must assemble the callbacks for this Extension from the
@@ -305,7 +309,16 @@ func (e *CloudRunMultiplexer) generateServiceName(oid string) string {
 func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, error) {
 	e.serviceCacheMutex.RLock()
 	def, ok := e.serviceCache[oid]
+	lastServiceUpdate := e.lastServiceUpdate
 	e.serviceCacheMutex.RUnlock()
+	if lastServiceUpdate.Add(serviceCacheTTL).Before(time.Now()) {
+		// We need to refresh the cache.
+		e.serviceCacheMutex.Lock()
+		e.serviceCache = make(map[string]ServiceDefinition)
+		e.lastServiceUpdate = time.Time{}
+		e.serviceCacheMutex.Unlock()
+		ok = false
+	}
 	if ok {
 		return def.ProjectID, def.Region, def.Name, nil
 	}
