@@ -82,6 +82,8 @@ func main() {
 	// Because this will be configured entirely through environment variables,
 	// we will parse the configuration from making a request to a reference
 	// service as defined by a LC_REFERENCE_SERVICE_URL environment variable.
+	// The worker service must use the LC_SHARED_SECRET environment variable
+	// as a shared secret to authenticate with the multiplexer.
 
 	rs := os.Getenv("LC_REFERENCE_SERVICE_URL")
 	if rs == "" {
@@ -348,6 +350,8 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 	}
 	defer runClient.Close()
 
+	newSecret := uuid.New().String()
+
 	// Prepare the service configuration
 	service := &runpb.Service{
 		Template: &runpb.RevisionTemplate{
@@ -376,6 +380,10 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 	for i, envStr := range e.serviceDefinition.Env {
 		parts := strings.SplitN(envStr, "=", 2)
 		if len(parts) == 2 {
+			// Look for the LC_SHARED_SECRET and replace it with the secret from the dynamic secret.
+			if parts[0] == "LC_SHARED_SECRET" {
+				parts[1] = newSecret
+			}
 			service.Template.Containers[0].Env[i] = &runpb.EnvVar{
 				Name: parts[0],
 				Values: &runpb.EnvVar_Value{
@@ -415,7 +423,7 @@ func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) 
 		ProjectID: projectID,
 		Region:    region,
 		URL:       resp.Uri,
-		Secret:    uuid.New().String(),
+		Secret:    newSecret,
 	}); err != nil {
 		// If we fail to store in Datastore, try to clean up the service
 		deleteReq := &runpb.DeleteServiceRequest{
