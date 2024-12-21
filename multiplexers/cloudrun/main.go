@@ -63,56 +63,73 @@ var Extension *CloudRunMultiplexer
 
 func main() {
 	// Because this will be configured entirely through environment variables,
-	// we will parse the LC_REQUEST_SCHEMA environment variable to get the
-	// schema of the requests this Extension will receive. We do the same with
-	// the LC_CONFIG_SCHEMA environment variable to get the schema of the
-	// configuration this Extension will receive.
-	// Finally do the same with LC_EXTENSION_NAME to get the name of the
-	// Extension this multiplexer will be proxying requests for and with
-	// LC_VIEW_SCHEMA and LC_REQUIRED_EVENTS.
-	rs := os.Getenv("LC_REQUEST_SCHEMA")
+	// we will parse the configuration from making a request to a reference
+	// service as defined by a LC_REFERENCE_SERVICE_URL environment variable.
+
+	rs := os.Getenv("LC_REFERENCE_SERVICE_URL")
 	if rs == "" {
-		panic("LC_REQUEST_SCHEMA is not set")
+		panic("LC_REFERENCE_SERVICE_URL is not set")
 	}
-	reqSchema := map[string]common.RequestSchema{}
-	if err := json.Unmarshal([]byte(rs), &reqSchema); err != nil {
-		panic(err)
-	}
-	cs := os.Getenv("LC_CONFIG_SCHEMA")
-	if cs == "" {
-		panic("LC_CONFIG_SCHEMA is not set")
-	}
-	configSchema := common.SchemaObject{}
-	if err := json.Unmarshal([]byte(cs), &configSchema); err != nil {
-		panic(err)
-	}
-	en := os.Getenv("LC_EXTENSION_NAME")
-	if en == "" {
-		panic("LC_EXTENSION_NAME is not set")
-	}
-	vs := os.Getenv("LC_VIEW_SCHEMA")
-	if vs == "" {
-		panic("LC_VIEW_SCHEMA is not set")
-	}
-	viewsSchema := []common.View{}
-	if err := json.Unmarshal([]byte(vs), &viewsSchema); err != nil {
-		panic(err)
-	}
-	re := os.Getenv("LC_REQUIRED_EVENTS")
-	if re == "" {
-		panic("LC_REQUIRED_EVENTS is not set")
-	}
-	requiredEvents := []common.EventName{}
-	if err := json.Unmarshal([]byte(re), &requiredEvents); err != nil {
-		panic(err)
-	}
-	requiredEvents = append(requiredEvents, common.EventTypes.Subscribe, common.EventTypes.Unsubscribe)
+
 	ws := os.Getenv("LC_WORKER_SHARED_SECRET")
 	if ws == "" {
 		panic("LC_WORKER_SHARED_SECRET is not set")
 	}
+
+	en := os.Getenv("LC_EXTENSION_NAME")
+	if en == "" {
+		panic("LC_EXTENSION_NAME is not set")
+	}
+
+	secret := os.Getenv("LC_SHARED_SECRET")
+	if secret == "" {
+		panic("LC_SHARED_SECRET is not set")
+	}
+
+	provProjectID := os.Getenv("PROVISION_PROJECT_ID")
+	if provProjectID == "" {
+		panic("PROVISION_PROJECT_ID is not set")
+	}
+	provRegion := os.Getenv("PROVISION_REGION")
+	if provRegion == "" {
+		panic("PROVISION_REGION is not set")
+	}
+
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		panic("REDIS_ADDR is not set")
+	}
+
+	// Make a request to the reference service to get the configuration by getting
+	// a SchemaRequest.
+	sr := common.SchemaRequestMessage{}
+	sc := &http.Client{
+		Timeout: 10 * time.Minute,
+	}
+	ss, err := json.Marshal(sr)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := forwardHTTP(context.Background(), []byte(ws), sc, rs, ss)
+	if err != nil {
+		panic(err)
+	}
+	if resp.Error != "" {
+		panic(resp.Error)
+	}
+	// The data is a SchemaRequestResponse in JSON form, so
+	// serialize and deserialize it into the struct.
+	ss, err = json.Marshal(resp.Data)
+	if err != nil {
+		panic(err)
+	}
+	srResp := common.SchemaRequestResponse{}
+	if err := json.Unmarshal(ss, &srResp); err != nil {
+		panic(err)
+	}
+
 	redisClient := redis.NewClient(&redis.Options{
-		Addr: os.Getenv("REDIS_ADDR"),
+		Addr: redisAddr,
 	})
 	if err := redisClient.Ping(context.Background()).Err(); err != nil {
 		panic(err)
@@ -124,16 +141,16 @@ func main() {
 	Extension = &CloudRunMultiplexer{
 		core.Extension{
 			ExtensionName:  en,
-			SecretKey:      os.Getenv("LC_SHARED_SECRET"),
-			ConfigSchema:   configSchema,
-			RequestSchema:  reqSchema,
-			ViewsSchema:    viewsSchema,
-			RequiredEvents: requiredEvents,
+			SecretKey:      secret,
+			ConfigSchema:   srResp.Config,
+			RequestSchema:  srResp.Request,
+			ViewsSchema:    srResp.Views,
+			RequiredEvents: srResp.RequiredEvents,
 		},
 		limacharlie.LCLoggerGCP{},
 		redisClient,
-		os.Getenv("PROVISION_PROJECT_ID"),
-		os.Getenv("PROVISION_REGION"),
+		provProjectID,
+		provRegion,
 		serviceDefinition,
 		&http.Client{
 			Timeout: 10 * time.Minute,
@@ -475,7 +492,7 @@ func (e *CloudRunMultiplexer) forwardRequest(ctx context.Context, action string,
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return e.forwardHTTP(ctx, serviceURL, body)
+	return forwardHTTP(ctx, []byte(e.workerSharedSecret), e.httpClient, serviceURL, body)
 }
 
 func (e *CloudRunMultiplexer) forwardConfigValidation(ctx context.Context, org *limacharlie.Organization, serviceURL string, config limacharlie.Dict) (*common.Response, error) {
@@ -494,7 +511,7 @@ func (e *CloudRunMultiplexer) forwardConfigValidation(ctx context.Context, org *
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return e.forwardHTTP(ctx, serviceURL, body)
+	return forwardHTTP(ctx, []byte(e.workerSharedSecret), e.httpClient, serviceURL, body)
 }
 
 func (e *CloudRunMultiplexer) forwardEvent(ctx context.Context, eventName common.EventName, params core.EventCallbackParams) (*common.Response, error) {
@@ -519,17 +536,17 @@ func (e *CloudRunMultiplexer) forwardEvent(ctx context.Context, eventName common
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return e.forwardHTTP(ctx, serviceURL, body)
+	return forwardHTTP(ctx, []byte(e.workerSharedSecret), e.httpClient, serviceURL, body)
 }
 
-func (e *CloudRunMultiplexer) forwardHTTP(ctx context.Context, serviceURL string, body []byte) (*common.Response, error) {
+func forwardHTTP(ctx context.Context, secret []byte, client *http.Client, serviceURL string, body []byte) (*common.Response, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, serviceURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("http.NewRequestWithContext: %v", err)
 	}
-	httpReq.Header.Set("lc-ext-sig", e.signForSelf(body))
+	httpReq.Header.Set("lc-ext-sig", signForSelf(secret, body))
 
-	resp, err := e.httpClient.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("http.Do: %v", err)
 	}
@@ -548,8 +565,8 @@ func (e *CloudRunMultiplexer) forwardHTTP(ctx context.Context, serviceURL string
 	return response, nil
 }
 
-func (e *CloudRunMultiplexer) signForSelf(data []byte) string {
-	mac := hmac.New(sha256.New, []byte(e.workerSharedSecret))
+func signForSelf(secret []byte, data []byte) string {
+	mac := hmac.New(sha256.New, secret)
 	mac.Write(data)
 	return hex.EncodeToString(mac.Sum(nil))
 }
