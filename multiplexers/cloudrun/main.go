@@ -78,7 +78,7 @@ type ServiceDefinition struct {
 
 var Extension *CloudRunMultiplexer
 
-func main() {
+func init() {
 	// Because this will be configured entirely through environment variables,
 	// we will parse the configuration from making a request to a reference
 	// service as defined by a LC_REFERENCE_SERVICE_URL environment variable.
@@ -235,6 +235,9 @@ func main() {
 			Extension.Error(fmt.Sprintf("error: %s", err.Error))
 		},
 	}
+}
+
+func main() {
 	// Start processing.
 	if err := Extension.Init(); err != nil {
 		panic(err)
