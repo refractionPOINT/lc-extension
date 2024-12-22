@@ -68,8 +68,8 @@ type Multiplexer struct {
 	lastServiceUpdate time.Time
 
 	// Optional hooks for users that want to do custom processing.
-	HookSendMessage func(ctx context.Context, org *limacharlie.Organization, message *common.Message) (*common.Message, error)
-	HookResponse    func(ctx context.Context, org *limacharlie.Organization, message *common.Message, response *common.Response) (*common.Response, error)
+	HookSendMessage func(ctx context.Context, ext *Multiplexer, org *limacharlie.Organization, message *common.Message) (*common.Message, error)
+	HookResponse    func(ctx context.Context, ext *Multiplexer, org *limacharlie.Organization, message *common.Message, response *common.Response) (*common.Response, error)
 }
 
 type ServiceDefinition struct {
@@ -522,7 +522,7 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 		},
 	}
 	if e.HookSendMessage != nil {
-		newReq, err = e.HookSendMessage(ctx, params.Org, newReq)
+		newReq, err = e.HookSendMessage(ctx, e, params.Org, newReq)
 		if err != nil {
 			return nil, fmt.Errorf("HookSendMessage: %v", err)
 		}
@@ -536,7 +536,7 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, params.Org, newReq, response)
+		response, err = e.HookResponse(ctx, e, params.Org, newReq, response)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
@@ -558,7 +558,7 @@ func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limachar
 	}
 	if e.HookSendMessage != nil {
 		var err error
-		newReq, err = e.HookSendMessage(ctx, org, newReq)
+		newReq, err = e.HookSendMessage(ctx, e, org, newReq)
 		if err != nil {
 			return nil, fmt.Errorf("HookSendMessage: %v", err)
 		}
@@ -572,7 +572,7 @@ func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limachar
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, org, newReq, response)
+		response, err = e.HookResponse(ctx, e, org, newReq, response)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
@@ -599,7 +599,7 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 		},
 	}
 	if e.HookSendMessage != nil {
-		newReq, err = e.HookSendMessage(ctx, params.Org, newReq)
+		newReq, err = e.HookSendMessage(ctx, e, params.Org, newReq)
 		if err != nil {
 			return nil, fmt.Errorf("HookSendMessage: %v", err)
 		}
@@ -613,7 +613,7 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, params.Org, newReq, response)
+		response, err = e.HookResponse(ctx, e, params.Org, newReq, response)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
