@@ -42,7 +42,7 @@ type CloudRunServiceDefinition struct {
 	ServiceAccount string   `json:"service_account"`
 }
 
-type CloudRunMultiplexer struct {
+type Multiplexer struct {
 	core.Extension
 	limacharlie.LCLoggerGCP
 
@@ -75,7 +75,7 @@ type ServiceDefinition struct {
 	Secret    string `json:"secret" datastore:"secret"`
 }
 
-var Extension *CloudRunMultiplexer
+var Extension *Multiplexer
 
 func init() {
 	// Because this will be configured entirely through environment variables,
@@ -153,7 +153,7 @@ func init() {
 	if err := json.Unmarshal([]byte(os.Getenv("SERVICE_DEFINITION")), &serviceDefinition); err != nil {
 		panic(err)
 	}
-	Extension = &CloudRunMultiplexer{
+	Extension = &Multiplexer{
 		core.Extension{
 			ExtensionName:  en,
 			SecretKey:      secret,
@@ -236,14 +236,7 @@ func init() {
 	}
 }
 
-// This example defines a simple http handler that can now be used
-// as an entry point to a Cloud Function. See /server/webserver for a
-// useful helper to run the handler as a webserver in a container.
-func Process(w http.ResponseWriter, r *http.Request) {
-	Extension.ServeHTTP(w, r)
-}
-
-func (e *CloudRunMultiplexer) Init() error {
+func (e *Multiplexer) Init() error {
 	// Initialize the Extension core.
 	if err := e.Extension.Init(); err != nil {
 		return err
@@ -252,7 +245,7 @@ func (e *CloudRunMultiplexer) Init() error {
 	return nil
 }
 
-func (e *CloudRunMultiplexer) OnGenericRequest(ctx context.Context, actionName common.ActionName, params core.RequestCallbackParams) common.Response {
+func (e *Multiplexer) OnGenericRequest(ctx context.Context, actionName common.ActionName, params core.RequestCallbackParams) common.Response {
 	// If we needed to do custom processing, we would do it here.
 	// For now, we will just forward the request to the service.
 	response, err := e.forwardRequest(ctx, actionName, params)
@@ -264,7 +257,7 @@ func (e *CloudRunMultiplexer) OnGenericRequest(ctx context.Context, actionName c
 	return *response
 }
 
-func (e *CloudRunMultiplexer) OnGenericEvent(ctx context.Context, eventName common.EventName, params core.EventCallbackParams) common.Response {
+func (e *Multiplexer) OnGenericEvent(ctx context.Context, eventName common.EventName, params core.EventCallbackParams) common.Response {
 	// If it is a subscribe event, we need to create a new service.
 	// If it is an unsubscribe event, we need to delete the service.
 	if eventName == common.EventTypes.Subscribe {
@@ -303,11 +296,11 @@ func (e *CloudRunMultiplexer) OnGenericEvent(ctx context.Context, eventName comm
 // We do this because there is a maximum number of Cloud Run services per project. So we might
 // have to expand into new projects.
 
-func (e *CloudRunMultiplexer) generateServiceName(oid string) string {
+func (e *Multiplexer) generateServiceName(oid string) string {
 	return fmt.Sprintf("%s-%s", e.ExtensionName, oid)
 }
 
-func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, string, error) {
+func (e *Multiplexer) getService(oid string) (string, string, string, string, error) {
 	e.serviceCacheMutex.RLock()
 	def, ok := e.serviceCache[oid]
 	lastServiceUpdate := e.lastServiceUpdate
@@ -333,7 +326,7 @@ func (e *CloudRunMultiplexer) getService(oid string) (string, string, string, st
 	return def.ProjectID, def.Region, def.URL, def.Secret, nil
 }
 
-func (e *CloudRunMultiplexer) createService(oid string) (string, string, error) {
+func (e *Multiplexer) createService(oid string) (string, string, error) {
 	projectID := e.provisionProjectID
 	region := e.provisionRegion
 	serviceName := e.generateServiceName(oid)
@@ -470,7 +463,7 @@ func makeServicePublic(ctx context.Context, client *run.ServicesClient, serviceN
 	return nil
 }
 
-func (e *CloudRunMultiplexer) deleteService(oid string) error {
+func (e *Multiplexer) deleteService(oid string) error {
 	projectID, region, _, _, err := e.getService(oid)
 	if err != nil {
 		return err
@@ -504,7 +497,7 @@ func (e *CloudRunMultiplexer) deleteService(oid string) error {
 	return nil
 }
 
-func (e *CloudRunMultiplexer) forwardRequest(ctx context.Context, action string, params core.RequestCallbackParams) (*common.Response, error) {
+func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params core.RequestCallbackParams) (*common.Response, error) {
 	_, _, serviceURL, secret, err := e.getService(params.Org.GetOID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service: %v", err)
@@ -529,7 +522,7 @@ func (e *CloudRunMultiplexer) forwardRequest(ctx context.Context, action string,
 	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 }
 
-func (e *CloudRunMultiplexer) forwardConfigValidation(ctx context.Context, org *limacharlie.Organization, serviceURL string, secret string, config limacharlie.Dict) (*common.Response, error) {
+func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limacharlie.Organization, serviceURL string, secret string, config limacharlie.Dict) (*common.Response, error) {
 	newReq := common.Message{
 		Version:        core.PROTOCOL_VERSION,
 		IdempotencyKey: "",
@@ -548,7 +541,7 @@ func (e *CloudRunMultiplexer) forwardConfigValidation(ctx context.Context, org *
 	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 }
 
-func (e *CloudRunMultiplexer) forwardEvent(ctx context.Context, eventName common.EventName, params core.EventCallbackParams) (*common.Response, error) {
+func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventName, params core.EventCallbackParams) (*common.Response, error) {
 	_, _, serviceURL, secret, err := e.getService(params.Org.GetOID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service: %v", err)
