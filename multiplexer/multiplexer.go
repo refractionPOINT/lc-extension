@@ -1,4 +1,4 @@
-package main
+package multiplexer
 
 import (
 	"bytes"
@@ -19,7 +19,6 @@ import (
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
-	"github.com/refractionPOINT/lc-extension/server/webserver"
 
 	"cloud.google.com/go/datastore"
 	iampb "cloud.google.com/go/iam/apiv1/iampb"
@@ -235,15 +234,6 @@ func init() {
 			Extension.Error(fmt.Sprintf("error: %s", err.Error))
 		},
 	}
-}
-
-func main() {
-	// Start processing.
-	if err := Extension.Init(); err != nil {
-		panic(err)
-	}
-
-	webserver.RunExtension(Extension)
 }
 
 // This example defines a simple http handler that can now be used

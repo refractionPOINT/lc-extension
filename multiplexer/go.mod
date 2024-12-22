@@ -1,4 +1,4 @@
-module github.com/refractionPOINT/lc-extension/multiplexers/cloudrun
+module github.com/refractionPOINT/lc-extension/multiplexer
 
 go 1.23.3
 
@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/datastore v1.20.0
 	cloud.google.com/go/iam v1.2.2
 	cloud.google.com/go/run v1.8.0
+	github.com/google/uuid v1.6.0
 	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241116003410-a5091d9de070
 	github.com/refractionPOINT/lc-extension v0.0.0-20241216004754-7c41f751af2b
 	google.golang.org/protobuf v1.35.2
@@ -34,7 +35,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
