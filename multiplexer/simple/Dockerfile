@@ -8,6 +8,6 @@ RUN go build -v
 
 FROM gcr.io/distroless/base-debian12:latest
 
-COPY --from=builder /cloudrun /cloudrun
+COPY --from=builder /simple /simple
 
-CMD ["/cloudrun"]
+CMD ["/simple"]
