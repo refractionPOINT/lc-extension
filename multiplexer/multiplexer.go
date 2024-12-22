@@ -66,6 +66,9 @@ type Multiplexer struct {
 	serviceCache      map[string]ServiceDefinition
 	serviceCacheMutex sync.RWMutex
 	lastServiceUpdate time.Time
+
+	// Optional hooks for users that want to do custom processing.
+	HookSendMessage func(ctx context.Context, message *common.Message) (*common.Message, error)
 }
 
 type ServiceDefinition struct {
@@ -174,6 +177,7 @@ func init() {
 		make(map[string]ServiceDefinition),
 		sync.RWMutex{},
 		time.Time{},
+		nil,
 	}
 
 	// We must assemble the callbacks for this Extension from the
@@ -502,7 +506,7 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service: %v", err)
 	}
-	newReq := common.Message{
+	newReq := &common.Message{
 		Version:        core.PROTOCOL_VERSION,
 		IdempotencyKey: params.IdempotentKey,
 		Request: &common.RequestMessage{
@@ -515,6 +519,12 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 			Config: params.Config,
 		},
 	}
+	if e.HookSendMessage != nil {
+		newReq, err = e.HookSendMessage(ctx, newReq)
+		if err != nil {
+			return nil, fmt.Errorf("HookSendMessage: %v", err)
+		}
+	}
 	body, err := json.Marshal(newReq)
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
@@ -523,7 +533,7 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 }
 
 func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limacharlie.Organization, serviceURL string, secret string, config limacharlie.Dict) (*common.Response, error) {
-	newReq := common.Message{
+	newReq := &common.Message{
 		Version:        core.PROTOCOL_VERSION,
 		IdempotencyKey: "",
 		ConfigValidation: &common.ConfigValidationMessage{
@@ -533,6 +543,13 @@ func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limachar
 			},
 			Config: config,
 		},
+	}
+	if e.HookSendMessage != nil {
+		var err error
+		newReq, err = e.HookSendMessage(ctx, newReq)
+		if err != nil {
+			return nil, fmt.Errorf("HookSendMessage: %v", err)
+		}
 	}
 	body, err := json.Marshal(newReq)
 	if err != nil {
@@ -546,7 +563,7 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service: %v", err)
 	}
-	newReq := common.Message{
+	newReq := &common.Message{
 		Version:        core.PROTOCOL_VERSION,
 		IdempotencyKey: params.IdempotentKey,
 		Event: &common.EventMessage{
@@ -558,6 +575,12 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 			Data:      params.Data,
 			Config:    params.Conf,
 		},
+	}
+	if e.HookSendMessage != nil {
+		newReq, err = e.HookSendMessage(ctx, newReq)
+		if err != nil {
+			return nil, fmt.Errorf("HookSendMessage: %v", err)
+		}
 	}
 	body, err := json.Marshal(newReq)
 	if err != nil {
