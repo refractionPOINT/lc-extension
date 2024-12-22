@@ -69,6 +69,7 @@ type Multiplexer struct {
 
 	// Optional hooks for users that want to do custom processing.
 	HookSendMessage func(ctx context.Context, message *common.Message) (*common.Message, error)
+	HookResponse    func(ctx context.Context, message *common.Message, response *common.Response) (*common.Response, error)
 }
 
 type ServiceDefinition struct {
@@ -177,6 +178,7 @@ func init() {
 		make(map[string]ServiceDefinition),
 		sync.RWMutex{},
 		time.Time{},
+		nil,
 		nil,
 	}
 
@@ -529,7 +531,17 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("forwardHTTP: %v", err)
+	}
+	if e.HookResponse != nil {
+		response, err = e.HookResponse(ctx, newReq, response)
+		if err != nil {
+			return nil, fmt.Errorf("HookResponse: %v", err)
+		}
+	}
+	return response, nil
 }
 
 func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limacharlie.Organization, serviceURL string, secret string, config limacharlie.Dict) (*common.Response, error) {
@@ -555,7 +567,17 @@ func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limachar
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("forwardHTTP: %v", err)
+	}
+	if e.HookResponse != nil {
+		response, err = e.HookResponse(ctx, newReq, response)
+		if err != nil {
+			return nil, fmt.Errorf("HookResponse: %v", err)
+		}
+	}
+	return response, nil
 }
 
 func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventName, params core.EventCallbackParams) (*common.Response, error) {
@@ -586,7 +608,17 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	return forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("forwardHTTP: %v", err)
+	}
+	if e.HookResponse != nil {
+		response, err = e.HookResponse(ctx, newReq, response)
+		if err != nil {
+			return nil, fmt.Errorf("HookResponse: %v", err)
+		}
+	}
+	return response, nil
 }
 
 func forwardHTTP(ctx context.Context, secret []byte, client *http.Client, serviceURL string, body []byte) (*common.Response, error) {
