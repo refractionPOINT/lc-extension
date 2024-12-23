@@ -93,9 +93,9 @@ func init() {
 		panic("LC_REFERENCE_SERVICE_URL is not set")
 	}
 
-	ws := os.Getenv("LC_WORKER_SHARED_SECRET")
+	ws := os.Getenv("LC_REFERENCE_SHARED_SECRET")
 	if ws == "" {
-		panic("LC_WORKER_SHARED_SECRET is not set")
+		panic("LC_REFERENCE_SHARED_SECRET is not set")
 	}
 
 	en := os.Getenv("LC_EXTENSION_NAME")
@@ -273,13 +273,6 @@ func (e *Multiplexer) OnGenericEvent(ctx context.Context, eventName common.Event
 				Error: fmt.Sprintf("failed to create service: %v", err),
 			}
 		}
-	} else if eventName == common.EventTypes.Unsubscribe {
-		err := e.deleteService(params.Org.GetOID())
-		if err != nil {
-			return common.Response{
-				Error: fmt.Sprintf("failed to delete service: %v", err),
-			}
-		}
 	}
 	// Also always forward the event to the service.
 	response, err := e.forwardEvent(ctx, eventName, params)
@@ -290,6 +283,15 @@ func (e *Multiplexer) OnGenericEvent(ctx context.Context, eventName common.Event
 		}
 		return common.Response{
 			Error: fmt.Sprintf("failed to forward event: %v", err),
+		}
+	}
+
+	if eventName == common.EventTypes.Unsubscribe {
+		err := e.deleteService(params.Org.GetOID())
+		if err != nil {
+			return common.Response{
+				Error: fmt.Sprintf("failed to delete service: %v", err),
+			}
 		}
 	}
 
