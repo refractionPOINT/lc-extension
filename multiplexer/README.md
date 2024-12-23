@@ -39,3 +39,22 @@ generated and set as `LC_SHARED_SECRET` in the new service.
 `LC_REFERENCE_SHARED_SECRET`: `1234`
 
 `LC_REFERENCE_SERVICE_URL`: `https://my-reference-service.com`
+
+## Triggering
+
+Running a playbook can be done interactively or as an `extension request` in a D&R rule with
+an action of `run_playbook` and 2 parameters:
+1. `name`: the name of the playbook to run
+2. `data`: the data to pass to the playbook (a dictionary)
+
+## Playbook structure
+
+A playbook is a python script that has a single requirement: a `playbook(sdk, data)` function at the global level.
+
+The `sdk` is an instance of the LC SDK, a Manager class, pre-authenticated with the organization.
+The `data` is the data dictionary passed to the playbook.
+
+This function returns a dictionary with one or more of the following components:
+1. `data`: a dictionary of data to return to the caller
+2. `error`: an error message (string) to return to the caller
+3. `detection`: a dictionary to use as detection
