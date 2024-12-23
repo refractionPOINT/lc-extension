@@ -1,14 +1,14 @@
-module github.com/refractionPOINT/lc-extension
+module github.com/refractionPOINT/lc-extension/multiplexer
 
-go 1.22.7
-
-toolchain go1.23.2
+go 1.23.3
 
 require (
-	cloud.google.com/go/run v1.6.1
-	github.com/go-redis/redis/v8 v8.11.5
+	cloud.google.com/go/datastore v1.20.0
+	cloud.google.com/go/iam v1.2.2
+	cloud.google.com/go/run v1.8.0
+	github.com/google/uuid v1.6.0
 	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241116003410-a5091d9de070
-	github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed
+	github.com/refractionPOINT/lc-extension v0.0.0-20241216004754-7c41f751af2b
 	google.golang.org/protobuf v1.35.2
 )
 
@@ -18,7 +18,6 @@ require (
 	cloud.google.com/go/auth v0.10.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.5 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
-	cloud.google.com/go/iam v1.2.2 // indirect
 	cloud.google.com/go/longrunning v0.6.2 // indirect
 	cloud.google.com/go/monitoring v1.21.2 // indirect
 	cloud.google.com/go/storage v1.47.0 // indirect
@@ -29,7 +28,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/envoyproxy/go-control-plane v0.13.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -37,7 +35,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

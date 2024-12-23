@@ -168,7 +168,13 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			e.respondAndLog(w, http.StatusBadRequest, &response)
 			return
 		}
-		tmpData, err := unmarshalToStruct(message.Request.Data, rcb.RequestStruct)
+		// If the request struct is nil, we will unmarshal into a dict.
+		var tmpData interface{}
+		if rcb.RequestStruct == nil || (reflect.ValueOf(tmpData).Kind() == reflect.Ptr && reflect.ValueOf(tmpData).IsNil()) {
+			tmpData = message.Request.Data
+		} else {
+			tmpData, err = unmarshalToStruct(message.Request.Data, rcb.RequestStruct)
+		}
 		if err != nil {
 			response.Error = fmt.Sprintf("failed to unmarshal request data: %v", err)
 			e.respondAndLog(w, http.StatusBadRequest, &response)

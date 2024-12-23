@@ -1,12 +1,12 @@
 package simplified
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"syscall"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
@@ -294,25 +294,29 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 }
 
 func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
-	d := limacharlie.Dict{}
+	// Try to parse multiple dictionaries in a row.
+	r := bytes.NewReader(output)
 	l := []limacharlie.Dict{}
-	// Is it a dictionary?
-	if err := json.Unmarshal(output, &d); err == nil {
-		return CLIReturnData{OutputDict: d}
+	for {
+		d := limacharlie.Dict{}
+		if err := json.NewDecoder(r).Decode(&d); err != nil {
+			break
+		}
+		l = append(l, d)
 	}
+
+	if len(l) == 1 {
+		return CLIReturnData{OutputDict: l[0]}
+	}
+	if len(l) > 1 {
+		return CLIReturnData{OutputList: l}
+	}
+
 	// Is it a list?
 	if err := json.Unmarshal(output, &l); err == nil {
 		return CLIReturnData{OutputList: l}
 	}
-	// Is it newline dict separated?
-	dec := json.NewDecoder(strings.NewReader(string(output)))
-	for {
-		var m limacharlie.Dict
-		if err := dec.Decode(&m); err != nil {
-			break
-		}
-		l = append(l, m)
-	}
+
 	if len(l) > 0 {
 		return CLIReturnData{OutputList: l}
 	}
