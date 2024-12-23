@@ -119,6 +119,7 @@ class SchemaDataTypes(object):
     Domain = "domain"
     JSON = "json"
     YAML = "yaml"
+    Code = "code"
     YaraRule = "yara_rule"
     YaraRuleName = "yara_rule_name"
     Object = "object"

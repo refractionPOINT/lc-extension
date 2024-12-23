@@ -57,7 +57,7 @@ var SchemaDataTypes = struct {
 
 	JSON string
 	YAML string
-
+	Code string
 	YaraRule     string
 	YaraRuleName string
 
@@ -88,6 +88,7 @@ var SchemaDataTypes = struct {
 
 	JSON: "json",
 	YAML: "yaml",
+	Code: "code",
 
 	YaraRule:     "yara_rule",
 	YaraRuleName: "yara_rule_name",

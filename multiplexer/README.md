@@ -10,6 +10,8 @@ The multiplexer is designed as an Extension itself and is designed to be deploye
 
 You can use the `multiplexer.Extension.HookSendMessage()` and `multiplexer.Extension.HookResponse()` hooks to add custom processing to the multiplexer.
 
+A "reference" service is also required. This instance of the service is used to generate the schema presented to LimaCharlie from outside of the multiplexer.
+
 ## Example configs
 
 The definition of the service to create in Cloud Run. The shared secret for those services is dynamically
