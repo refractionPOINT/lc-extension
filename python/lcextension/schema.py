@@ -104,6 +104,8 @@ class SchemaDataTypes(object):
     Integer = "integer"
     Boolean = "bool"
     Enum = "enum"
+    ComplexEnum = "complex_enum"
+    Secret = "secret"
     SensorID = "sid"
     OrgID = "oid"
     Platform = "platform"
