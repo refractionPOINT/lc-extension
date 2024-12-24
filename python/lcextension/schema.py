@@ -112,6 +112,10 @@ class SchemaView(object):
         self.Name = ""
         self.LayoutType = None
         self.DefaultRequests = None # [] of Request names
+        for k, v in kwargs.items():
+            if not hasattr(self, k):
+                raise Exception(f"unknown attribute {k}")
+            setattr(self, k, v)
 
     def serialize(self):
         return {
