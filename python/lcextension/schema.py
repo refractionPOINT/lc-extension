@@ -16,7 +16,7 @@ class SchemaObject(object):
             'fields' : {n: f.serialize() for n, f in self.Fields.items()},
             'list_element_name': self.ListElementName,
             'element_desc': self.ElementDescription,
-            'key': self.Key.serialize(),
+            'key': None if self.Key is None else self.Key.serialize(),
             'requirements' : self.Requirements,
             'supported_actions': self.SupportedActions,
         }
