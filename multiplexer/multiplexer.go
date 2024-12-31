@@ -32,14 +32,15 @@ const serviceCacheTTL = 10 * time.Second
 // This is the definition of a Cloud Run service
 // we can use to create a new service.
 type CloudRunServiceDefinition struct {
-	Image          string   `json:"image"`
-	Env            []string `json:"env"`
-	CPU            string   `json:"cpu"`
-	Memory         string   `json:"memory"`
-	MinInstances   int32    `json:"min_instances"`
-	MaxInstances   int32    `json:"max_instances"`
-	Timeout        int32    `json:"timeout"`
-	ServiceAccount string   `json:"service_account"`
+	Image          string            `json:"image"`
+	Env            []string          `json:"env"`
+	CPU            string            `json:"cpu"`
+	Memory         string            `json:"memory"`
+	MinInstances   int32             `json:"min_instances"`
+	MaxInstances   int32             `json:"max_instances"`
+	Timeout        int32             `json:"timeout"`
+	ServiceAccount string            `json:"service_account"`
+	Labels         map[string]string `json:"labels"`
 }
 
 type Multiplexer struct {
@@ -372,6 +373,7 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 			},
 			ServiceAccount: e.serviceDefinition.ServiceAccount,
 		},
+		Labels: e.serviceDefinition.Labels,
 	}
 
 	// Convert environment variables
