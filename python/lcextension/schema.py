@@ -16,9 +16,30 @@ class SchemaObject(object):
             'fields' : {n: f.serialize() for n, f in self.Fields.items()},
             'list_element_name': self.ListElementName,
             'element_desc': self.ElementDescription,
-            'key': self.Key,
+            'key': None if self.Key is None else self.Key.serialize(),
             'requirements' : self.Requirements,
             'supported_actions': self.SupportedActions,
+        }
+
+class SchemaRecordKey(object):
+    def __init__(self, **kwargs):
+        self.Name = ""
+        self.Label = ""
+        self.Description = ""
+        self.DataType = None # SchemaDataTypes
+        self.DisplayIndex = None
+        for k, v in kwargs.items():
+            if not hasattr(self, k):
+                raise Exception(f"unknown attribute {k}")
+            setattr(self, k, v)
+
+    def serialize(self):
+        return {
+            'name': self.Name,
+            'label': self.Label,
+            'description': self.Description,
+            'data_type': self.DataType,
+            'display_index': self.DisplayIndex,
         }
 
 class SchemaElement(object):
@@ -91,6 +112,10 @@ class SchemaView(object):
         self.Name = ""
         self.LayoutType = None
         self.DefaultRequests = None # [] of Request names
+        for k, v in kwargs.items():
+            if not hasattr(self, k):
+                raise Exception(f"unknown attribute {k}")
+            setattr(self, k, v)
 
     def serialize(self):
         return {

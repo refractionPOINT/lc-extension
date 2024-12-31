@@ -32,14 +32,15 @@ const serviceCacheTTL = 10 * time.Second
 // This is the definition of a Cloud Run service
 // we can use to create a new service.
 type CloudRunServiceDefinition struct {
-	Image          string   `json:"image"`
-	Env            []string `json:"env"`
-	CPU            string   `json:"cpu"`
-	Memory         string   `json:"memory"`
-	MinInstances   int32    `json:"min_instances"`
-	MaxInstances   int32    `json:"max_instances"`
-	Timeout        int32    `json:"timeout"`
-	ServiceAccount string   `json:"service_account"`
+	Image          string            `json:"image"`
+	Env            []string          `json:"env"`
+	CPU            string            `json:"cpu"`
+	Memory         string            `json:"memory"`
+	MinInstances   int32             `json:"min_instances"`
+	MaxInstances   int32             `json:"max_instances"`
+	Timeout        int32             `json:"timeout"`
+	ServiceAccount string            `json:"service_account"`
+	Labels         map[string]string `json:"labels"`
 }
 
 type Multiplexer struct {
@@ -350,6 +351,16 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 
 	newSecret := uuid.New().String()
 
+	// Add some a base label for the tenant.
+	labels := map[string]string{
+		"lc-oid":       oid,
+		"lc-extension": e.ExtensionName,
+	}
+	// Combine with the static labels.
+	for k, v := range e.serviceDefinition.Labels {
+		labels[k] = v
+	}
+
 	// Prepare the service configuration
 	service := &runpb.Service{
 		Template: &runpb.RevisionTemplate{
@@ -372,6 +383,7 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 			},
 			ServiceAccount: e.serviceDefinition.ServiceAccount,
 		},
+		Labels: labels,
 	}
 
 	// Convert environment variables
