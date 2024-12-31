@@ -351,6 +351,16 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 
 	newSecret := uuid.New().String()
 
+	// Add some a base label for the tenant.
+	labels := map[string]string{
+		"lc-oid":       oid,
+		"lc-extension": e.ExtensionName,
+	}
+	// Combine with the static labels.
+	for k, v := range e.serviceDefinition.Labels {
+		labels[k] = v
+	}
+
 	// Prepare the service configuration
 	service := &runpb.Service{
 		Template: &runpb.RevisionTemplate{
@@ -373,7 +383,7 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 			},
 			ServiceAccount: e.serviceDefinition.ServiceAccount,
 		},
-		Labels: e.serviceDefinition.Labels,
+		Labels: labels,
 	}
 
 	// Convert environment variables
