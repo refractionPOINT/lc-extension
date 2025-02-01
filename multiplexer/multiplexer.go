@@ -582,12 +582,13 @@ func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limachar
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
+	startTime := time.Now()
 	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, e, org, newReq, response)
+		response, err = e.HookResponse(ctx, e, org, newReq, response, startTime)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
@@ -623,12 +624,13 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
+	startTime := time.Now()
 	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, e, params.Org, newReq, response)
+		response, err = e.HookResponse(ctx, e, params.Org, newReq, response, startTime)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
