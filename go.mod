@@ -1,8 +1,6 @@
 module github.com/refractionPOINT/lc-extension
 
-go 1.22.7
-
-toolchain go1.23.2
+go 1.23.3
 
 require (
 	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20241116003410-a5091d9de070

@@ -55,9 +55,9 @@ var SchemaDataTypes = struct {
 	URL    string
 	Domain string
 
-	JSON string
-	YAML string
-	Code string
+	JSON         string
+	YAML         string
+	Code         string
 	YaraRule     string
 	YaraRuleName string
 

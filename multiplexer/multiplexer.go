@@ -70,7 +70,7 @@ type Multiplexer struct {
 
 	// Optional hooks for users that want to do custom processing.
 	HookSendMessage func(ctx context.Context, ext *Multiplexer, org *limacharlie.Organization, message *common.Message) (*common.Message, error)
-	HookResponse    func(ctx context.Context, ext *Multiplexer, org *limacharlie.Organization, message *common.Message, response *common.Response) (*common.Response, error)
+	HookResponse    func(ctx context.Context, ext *Multiplexer, org *limacharlie.Organization, message *common.Message, response *common.Response, startTime time.Time) (*common.Response, error)
 }
 
 type ServiceDefinition struct {
@@ -545,12 +545,13 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
+	startTime := time.Now()
 	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, e, params.Org, newReq, response)
+		response, err = e.HookResponse(ctx, e, params.Org, newReq, response, startTime)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
@@ -581,12 +582,13 @@ func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limachar
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
+	startTime := time.Now()
 	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, e, org, newReq, response)
+		response, err = e.HookResponse(ctx, e, org, newReq, response, startTime)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
@@ -622,12 +624,13 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
+	startTime := time.Now()
 	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("forwardHTTP: %v", err)
 	}
 	if e.HookResponse != nil {
-		response, err = e.HookResponse(ctx, e, params.Org, newReq, response)
+		response, err = e.HookResponse(ctx, e, params.Org, newReq, response, startTime)
 		if err != nil {
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
