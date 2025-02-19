@@ -383,6 +383,9 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 			},
 			ServiceAccount: e.serviceDefinition.ServiceAccount,
 		},
+		Annotations: map[string]string{
+			"run.googleapis.com/cpu-throttling": "true", // Per-request billing
+		},
 		Labels: labels,
 	}
 
