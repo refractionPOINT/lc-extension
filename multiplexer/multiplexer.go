@@ -372,6 +372,7 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 							"cpu":    e.serviceDefinition.CPU,
 							"memory": e.serviceDefinition.Memory,
 						},
+						CpuIdle: true,
 					},
 					Env: make([]*runpb.EnvVar, len(e.serviceDefinition.Env)+1),
 				},
@@ -382,9 +383,6 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 				MaxInstanceCount: e.serviceDefinition.MaxInstances,
 			},
 			ServiceAccount: e.serviceDefinition.ServiceAccount,
-		},
-		Annotations: map[string]string{
-			"run.googleapis.com/cpu-throttling": "true", // Per-request billing
 		},
 		Labels: labels,
 	}
