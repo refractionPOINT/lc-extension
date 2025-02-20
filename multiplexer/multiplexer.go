@@ -383,7 +383,6 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 				MaxInstanceCount: e.serviceDefinition.MaxInstances,
 			},
 			ServiceAccount: e.serviceDefinition.ServiceAccount,
-			Annotations: map[string]string{},
 		},
 		Labels: labels,
 	}
