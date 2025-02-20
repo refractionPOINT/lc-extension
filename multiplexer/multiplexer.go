@@ -383,9 +383,7 @@ func (e *Multiplexer) createService(oid string) (string, string, error) {
 				MaxInstanceCount: e.serviceDefinition.MaxInstances,
 			},
 			ServiceAccount: e.serviceDefinition.ServiceAccount,
-			Annotations: map[string]string{
-				"run.googleapis.com/cpu-throttling": "true", // Per-request billing
-			},
+			Annotations: map[string]string{},
 		},
 		Labels: labels,
 	}
