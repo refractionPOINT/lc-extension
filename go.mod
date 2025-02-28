@@ -3,7 +3,7 @@ module github.com/refractionPOINT/lc-extension
 go 1.23.3
 
 require (
-	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20250227224715-2e26fd306af7
+	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20250228011406-d0b8a60508e5
 	github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed
 )
 

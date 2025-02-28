@@ -110,8 +110,8 @@ github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10/go.mod h1
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
-github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20250227224715-2e26fd306af7 h1:L1W0ZKQyWtCXQJMDCfz9mCL9sc89bJRbfOTIoz6QXgw=
-github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20250227224715-2e26fd306af7/go.mod h1:Hpi1OSImB/AOL6BKvMJF6ZZhrXZi2SYUBdJVtsySJAw=
+github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20250228011406-d0b8a60508e5 h1:gsGDTEIxdpSbV/lOojVFZ4p8xG0VXGS64OibbcuQZj0=
+github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20250228011406-d0b8a60508e5/go.mod h1:Hpi1OSImB/AOL6BKvMJF6ZZhrXZi2SYUBdJVtsySJAw=
 github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed h1:d9SCvhFrnSfTOmgnsmAQIqMqNKeZ+eMGw7itGRJgRmE=
 github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed/go.mod h1:vrBdshTXdAtG5MncHgvdx+N4R5zaKXFz4nnlxd+yqMs=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
