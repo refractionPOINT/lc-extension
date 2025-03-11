@@ -229,7 +229,7 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	// The service is set to let one request at a time and we
 	// will also terminate the container on exit by sending
 	// outselves a signal to terminate.
-	defer stopThisInstance()
+	defer e.stopThisInstance(o, request)
 
 	// If a full Command Line was provided in the request
 	// instead of tokens, use shlex to parse it into tokens.
@@ -325,9 +325,11 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 	return CLIReturnData{OutputString: string(output)}
 }
 
-func stopThisInstance() {
+func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest) {
+	e.Logger.Info(fmt.Sprintf("stopping instance after processing request for oid=%s,tool=%s", o.GetOID(), request.Tool))
 	p, err := os.FindProcess(os.Getpid())
 	if err != nil {
+		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
 		return
 	}
 	p.Signal(syscall.SIGTERM)
