@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
@@ -16,7 +17,7 @@ import (
 	"github.com/refractionPOINT/shlex"
 )
 
-type CLIHandler = func(cliTokens []string, credentials string) (CLIReturnData, error)
+type CLIHandler = func(ctx context.Context, cliTokens []string, credentials string) (CLIReturnData, error)
 
 type CLIDescriptor struct {
 	ProcessCommand    CLIHandler
@@ -51,6 +52,8 @@ type CLIRunRequest struct {
 }
 
 var errUnknownTool = errors.New("unknown tool")
+
+const toolCommandExecutionTimeout = 120 * time.Second
 
 func (l *CLIExtension) Init() (*core.Extension, error) {
 	isSingleTool := len(l.Descriptors) == 1
@@ -260,7 +263,9 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		}
 	}
 
-	resp, err := handler.ProcessCommand(request.CommandTokens, request.Credentials)
+	ctx, cancel := context.WithTimeout(context.Background(), toolCommandExecutionTimeout)
+	defer cancel()
+	resp, err := handler.ProcessCommand(ctx, request.CommandTokens, request.Credentials)
 
 	// Log to the adapter.
 	anonReq := *request
