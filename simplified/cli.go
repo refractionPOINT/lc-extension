@@ -54,7 +54,7 @@ type CLIRunRequest struct {
 var errUnknownTool = errors.New("unknown tool")
 
 // Timeout for CLI command execution
-const toolCommandExecutionTimeout = 120 * time.Second
+const toolCommandExecutionTimeout = 9 * time.Minute
 
 // Maximum size / length for the CLI arguments in bytes
 const commandArgumentsMaxSize = 1024 * 10
