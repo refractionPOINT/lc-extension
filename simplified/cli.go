@@ -234,8 +234,11 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	// outselves a signal to terminate.
 	defer e.stopThisInstance(o, request)
 
+	e.Logger.Debug(fmt.Sprintf("running command for %s and tool %s", o.GetOID(), request.Tool))
+
 	// If a full Command Line was provided in the request
 	// instead of tokens, use shlex to parse it into tokens.
+	// NOTE(Tomaz): We should probably validate and limit max size for CommandTokens and CommandLine...
 	if len(request.CommandTokens) == 0 && len(request.CommandLine) != 0 {
 		tokens, err := shlex.Split(request.CommandLine)
 		if err != nil {
@@ -265,11 +268,15 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 
 	ctx, cancel := context.WithTimeout(context.Background(), toolCommandExecutionTimeout)
 	defer cancel()
+	start := time.Now()
 	resp, err := handler.ProcessCommand(ctx, request.CommandTokens, request.Credentials)
+	elapsed := time.Since(start)
 
 	// Log to the adapter.
 	anonReq := *request
 	anonReq.Credentials = "REDACTED"
+	// NOTE(Tomaz): request.CommandLine and request.CommandTokens could potentially also contain sensitive information
+	// so perhaps we should try to sanitize / mask it as well
 
 	hook := limacharlie.Dict{
 		"action":  "run",
@@ -280,9 +287,18 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 
 	if err != nil {
 		hook["error"] = err.Error()
-	}
-	if err != errUnknownTool {
-		hook["response"] = &resp
+
+		if err != errUnknownTool {
+			// Include additional context in the webhook payload
+			hook["response"] = &resp
+		}
+
+		// Those usually don't represent fatal erros so we log them under info
+		// It's important that error message doesn't contain any secrets such as potential
+		// CLI arguments, credentials, etc.
+		e.Logger.Info(fmt.Sprintf("command for %s and tool %s failed and took %f seconds: %v", o.GetOID(), request.Tool, elapsed.Seconds(), err))
+	} else {
+		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
 	if err := e.extension.SendToWebhookAdapter(o, hook); err != nil {
