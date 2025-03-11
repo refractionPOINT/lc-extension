@@ -365,11 +365,14 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 }
 
 func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest) {
-	e.Logger.Info(fmt.Sprintf("stopping instance after processing request for oid=%s,tool=%s", o.GetOID(), request.Tool))
+	e.Logger.Info(fmt.Sprintf("stopping instance after processing request for oid %s and tool %s", o.GetOID(), request.Tool))
 	p, err := os.FindProcess(os.Getpid())
 	if err != nil {
 		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
 		return
 	}
 	p.Signal(syscall.SIGTERM)
+
+	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
+	// X seconds?
 }
