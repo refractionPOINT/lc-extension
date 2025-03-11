@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
@@ -16,7 +17,7 @@ import (
 	"github.com/refractionPOINT/shlex"
 )
 
-type CLIHandler = func(cliTokens []string, credentials string) (CLIReturnData, error)
+type CLIHandler = func(ctx context.Context, cliTokens []string, credentials string) (CLIReturnData, error)
 
 type CLIDescriptor struct {
 	ProcessCommand    CLIHandler
@@ -51,6 +52,15 @@ type CLIRunRequest struct {
 }
 
 var errUnknownTool = errors.New("unknown tool")
+
+// Timeout for CLI command execution
+const toolCommandExecutionTimeout = 9 * time.Minute
+
+// Maximum size / length for the CLI arguments in bytes
+const commandArgumentsMaxSize = 1024 * 10
+
+// Maximum number of items for CLI arguments when specified as a list / parsing string argument to a list
+const commandArgumentsMaxCount = 50
 
 func (l *CLIExtension) Init() (*core.Extension, error) {
 	isSingleTool := len(l.Descriptors) == 1
@@ -229,7 +239,9 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	// The service is set to let one request at a time and we
 	// will also terminate the container on exit by sending
 	// outselves a signal to terminate.
-	defer stopThisInstance()
+	defer e.stopThisInstance(o, request)
+
+	e.Logger.Debug(fmt.Sprintf("running command for %s and tool %s", o.GetOID(), request.Tool))
 
 	// If a full Command Line was provided in the request
 	// instead of tokens, use shlex to parse it into tokens.
@@ -241,6 +253,18 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 			}
 		}
 		request.CommandTokens = tokens
+	}
+
+	if len(request.CommandLine) > commandArgumentsMaxSize {
+		return common.Response{
+			Error: fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
+		}
+	}
+
+	if len(request.CommandTokens) > commandArgumentsMaxCount {
+		return common.Response{
+			Error: fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
+		}
 	}
 
 	var handler CLIDescriptor
@@ -260,11 +284,17 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		}
 	}
 
-	resp, err := handler.ProcessCommand(request.CommandTokens, request.Credentials)
+	ctx, cancel := context.WithTimeout(context.Background(), toolCommandExecutionTimeout)
+	defer cancel()
+	start := time.Now()
+	resp, err := handler.ProcessCommand(ctx, request.CommandTokens, request.Credentials)
+	elapsed := time.Since(start)
 
 	// Log to the adapter.
 	anonReq := *request
 	anonReq.Credentials = "REDACTED"
+	// NOTE(Tomaz): request.CommandLine and request.CommandTokens could potentially also contain sensitive information
+	// so perhaps we should try to sanitize / mask it as well
 
 	hook := limacharlie.Dict{
 		"action":  "run",
@@ -275,9 +305,18 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 
 	if err != nil {
 		hook["error"] = err.Error()
-	}
-	if err != errUnknownTool {
-		hook["response"] = &resp
+
+		if err != errUnknownTool {
+			// Include additional context in the webhook payload
+			hook["response"] = &resp
+		}
+
+		// Those usually don't represent fatal erros so we log them under info
+		// It's important that error message doesn't contain any secrets such as potential
+		// CLI arguments, credentials, etc.
+		e.Logger.Info(fmt.Sprintf("command for %s and tool %s failed and took %f seconds: %v", o.GetOID(), request.Tool, elapsed.Seconds(), err))
+	} else {
+		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
 	if err := e.extension.SendToWebhookAdapter(o, hook); err != nil {
@@ -325,10 +364,15 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 	return CLIReturnData{OutputString: string(output)}
 }
 
-func stopThisInstance() {
+func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest) {
+	e.Logger.Info(fmt.Sprintf("stopping instance after processing request for oid %s and tool %s", o.GetOID(), request.Tool))
 	p, err := os.FindProcess(os.Getpid())
 	if err != nil {
+		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
 		return
 	}
 	p.Signal(syscall.SIGTERM)
+
+	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
+	// X seconds?
 }
