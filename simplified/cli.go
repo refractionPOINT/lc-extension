@@ -53,7 +53,14 @@ type CLIRunRequest struct {
 
 var errUnknownTool = errors.New("unknown tool")
 
+// Timeout for CLI command execution
 const toolCommandExecutionTimeout = 120 * time.Second
+
+// Maximum size / length for the CLI arguments in bytes
+const commandArgumentsMaxSize = 1024 * 10
+
+// Maximum number of items for CLI arguments when specified as a list / parsing string argument to a list
+const commandArgumentsMaxCount = 50
 
 func (l *CLIExtension) Init() (*core.Extension, error) {
 	isSingleTool := len(l.Descriptors) == 1
@@ -238,7 +245,6 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 
 	// If a full Command Line was provided in the request
 	// instead of tokens, use shlex to parse it into tokens.
-	// NOTE(Tomaz): We should probably validate and limit max size for CommandTokens and CommandLine...
 	if len(request.CommandTokens) == 0 && len(request.CommandLine) != 0 {
 		tokens, err := shlex.Split(request.CommandLine)
 		if err != nil {
@@ -247,6 +253,18 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 			}
 		}
 		request.CommandTokens = tokens
+	}
+
+	if len(request.CommandLine) > commandArgumentsMaxSize {
+		return common.Response{
+			Error: fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
+		}
+	}
+
+	if len(request.CommandTokens) > commandArgumentsMaxCount {
+		return common.Response{
+			Error: fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
+		}
 	}
 
 	var handler CLIDescriptor
