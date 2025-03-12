@@ -248,6 +248,7 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	if len(request.CommandTokens) == 0 && len(request.CommandLine) != 0 {
 		tokens, err := shlex.Split(request.CommandLine)
 		if err != nil {
+			e.Logger.Info(fmt.Sprintf("failed to parse command line for %s and tool %s: %v", o.GetOID(), request.Tool, err))
 			return common.Response{
 				Error: fmt.Sprintf("failed to parse command line: %v", err),
 			}
@@ -256,12 +257,14 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	}
 
 	if len(request.CommandLine) > commandArgumentsMaxSize {
+		e.Logger.Info(fmt.Sprintf("command line is too long for %s and tool %s, got %d, max size is %d", o.GetOID(), request.Tool, len(request.CommandLine), commandArgumentsMaxSize))
 		return common.Response{
 			Error: fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
 		}
 	}
 
 	if len(request.CommandTokens) > commandArgumentsMaxCount {
+		e.Logger.Info(fmt.Sprintf("command arguments are too long for %s and tool %s, got %d, max count is %d", o.GetOID(), request.Tool, len(request.CommandTokens), commandArgumentsMaxCount))
 		return common.Response{
 			Error: fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
 		}
@@ -278,6 +281,7 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		var ok bool
 		handler, ok = e.Descriptors[request.Tool]
 		if !ok {
+			e.Logger.Info(fmt.Sprintf("unknown tool for %s: %s", o.GetOID(), request.Tool))
 			return common.Response{
 				Error: fmt.Sprintf("unknown tool: %s", request.Tool),
 			}
