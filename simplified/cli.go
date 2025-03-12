@@ -239,7 +239,11 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	// The service is set to let one request at a time and we
 	// will also terminate the container on exit by sending
 	// outselves a signal to terminate.
-	defer e.stopThisInstance(o, request)
+	var doRunResp common.Response
+
+	defer func() {
+		e.stopThisInstance(o, request, doRunResp.Error)
+	}()
 
 	e.Logger.Debug(fmt.Sprintf("running command for %s and tool %s", o.GetOID(), request.Tool))
 
@@ -249,25 +253,28 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		tokens, err := shlex.Split(request.CommandLine)
 		if err != nil {
 			e.Logger.Info(fmt.Sprintf("failed to parse command line for %s and tool %s: %v", o.GetOID(), request.Tool, err))
-			return common.Response{
+			doRunResp = common.Response{
 				Error: fmt.Sprintf("failed to parse command line: %v", err),
 			}
+			return doRunResp
 		}
 		request.CommandTokens = tokens
 	}
 
 	if len(request.CommandLine) > commandArgumentsMaxSize {
 		e.Logger.Info(fmt.Sprintf("command line is too long for %s and tool %s, got %d, max size is %d", o.GetOID(), request.Tool, len(request.CommandLine), commandArgumentsMaxSize))
-		return common.Response{
+		doRunResp = common.Response{
 			Error: fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
 		}
+		return doRunResp
 	}
 
 	if len(request.CommandTokens) > commandArgumentsMaxCount {
 		e.Logger.Info(fmt.Sprintf("command arguments are too long for %s and tool %s, got %d, max count is %d", o.GetOID(), request.Tool, len(request.CommandTokens), commandArgumentsMaxCount))
-		return common.Response{
+		doRunResp = common.Response{
 			Error: fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
 		}
+		return doRunResp
 	}
 
 	var handler CLIDescriptor
@@ -282,9 +289,10 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		handler, ok = e.Descriptors[request.Tool]
 		if !ok {
 			e.Logger.Info(fmt.Sprintf("unknown tool for %s: %s", o.GetOID(), request.Tool))
-			return common.Response{
+			doRunResp = common.Response{
 				Error: fmt.Sprintf("unknown tool: %s", request.Tool),
 			}
+			return doRunResp
 		}
 	}
 
@@ -328,12 +336,14 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	}
 
 	if err != nil {
-		return common.Response{
+		doRunResp = common.Response{
 			Data:  &resp,
 			Error: err.Error(),
 		}
+		return doRunResp
 	}
-	return common.Response{Data: &resp}
+	doRunResp = common.Response{Data: &resp}
+	return doRunResp
 }
 
 func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
@@ -368,8 +378,13 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 	return CLIReturnData{OutputString: string(output)}
 }
 
-func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest) {
-	e.Logger.Info(fmt.Sprintf("stopping instance after processing request for oid %s and tool %s", o.GetOID(), request.Tool))
+func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest, error string) {
+	if error == "" {
+		e.Logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))
+	} else {
+		e.Logger.Info(fmt.Sprintf("stopping instance after failed processing for oid %s and tool %s: %s", o.GetOID(), request.Tool, error))
+	}
+
 	p, err := os.FindProcess(os.Getpid())
 	if err != nil {
 		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
