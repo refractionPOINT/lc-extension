@@ -390,7 +390,12 @@ func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CL
 		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
 		return
 	}
-	p.Signal(syscall.SIGTERM)
+
+	// Send SIGTERM to the current process.
+	if err := p.Signal(syscall.SIGTERM); err != nil {
+		e.Logger.Error(fmt.Sprintf("failed to send SIGTERM: %v", err))
+		return
+	}
 
 	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
 	// X seconds?
