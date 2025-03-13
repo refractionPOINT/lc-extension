@@ -13,6 +13,7 @@ import (
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/refractionPOINT/shlex"
 )
@@ -42,6 +43,11 @@ type CLIExtension struct {
 	Descriptors map[CLIName]CLIDescriptor
 
 	extension *core.Extension
+
+	// Semaphore which is used to ensure that only one CLI command HTTP request handler is executed at a time.
+	// This is an additional safe guard to prevent multiple requests running at the same time and potential
+	// cross request state leakage.
+	sem *semaphore.Weighted
 }
 
 type CLIRunRequest struct {
@@ -204,6 +210,9 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 	}
 
 	l.extension = x
+	// Only allow one request to be executed at a time (we want to spin a new container for each
+	// request to ensure isolation and prevent cross request state leakage).
+	l.sem = semaphore.NewWeighted(1)
 
 	// Start processing.
 	if err := x.Init(); err != nil {
@@ -241,8 +250,20 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	// outselves a signal to terminate.
 	var doRunResp common.Response
 
+	// Acquire a semaphore to ensure that only one CLI command HTTP request handler is executed at a time.
+	// NOTE: We intentionally never release this semaphore since this function is meant to run once and
+	// then terminate the process. If we released it at the end, this would defeat the purpose and potentially
+	// multiple requests could be processed by the same container / process.
+	ctx := context.Background()
+	if err := e.sem.Acquire(ctx, 1); err != nil {
+		doRunResp = common.Response{
+			Error: "concurrent request limit reached, try again later",
+		}
+		return doRunResp
+	}
+
 	defer func() {
-		e.stopThisInstance(o, request, doRunResp.Error)
+		e.postRequestCleanup(o, request, doRunResp.Error)
 	}()
 
 	e.Logger.Debug(fmt.Sprintf("running command for %s and tool %s", o.GetOID(), request.Tool))
@@ -378,25 +399,42 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 	return CLIReturnData{OutputString: string(output)}
 }
 
-func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest, error string) {
+// Stop this instance to ensure single request handler only processes one request at a time before
+// exiting - we want new container for each request to ensure isolation.
+func stopThisInstance() {
+	time.Sleep(2000 * time.Millisecond)
+
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		fmt.Printf("failed to find process: %v\n", err)
+		return
+	}
+
+	fmt.Printf("shutting down (pid=%d)\n", os.Getpid())
+	// Send SIGTERM to the current process.
+	if err := p.Signal(syscall.SIGTERM); err != nil {
+		fmt.Printf("failed to send SIGTERM: %v\n", err)
+		return
+	}
+	fmt.Println("sent SIGTERM")
+
+	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
+	// X seconds?
+}
+
+func (e *CLIExtension) postRequestCleanup(o *limacharlie.Organization, request *CLIRunRequest, error string) {
 	if error == "" {
 		e.Logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))
 	} else {
 		e.Logger.Info(fmt.Sprintf("stopping instance after failed processing for oid %s and tool %s: %s", o.GetOID(), request.Tool, error))
 	}
 
-	p, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
-		return
-	}
-
-	// Send SIGTERM to the current process.
-	if err := p.Signal(syscall.SIGTERM); err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to send SIGTERM: %v", err))
-		return
-	}
-
-	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
-	// X seconds?
+	// Stop this instance to ensure single request handler only processes one request at a time before
+	// It's important we do this inside a goroutine to ensure this function returns immediately so the result is
+	// returned to the client before shutting down the server. This is important since this function is called
+	// using defered inside the request handler - if we don't use a go routine, it won't return to the caller
+	// until the stopThisInstance function is finished.
+	go func() {
+		stopThisInstance()
+	}()
 }

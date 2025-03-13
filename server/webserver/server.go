@@ -3,12 +3,14 @@ package webserver
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func RunExtension(extension http.Handler) {
@@ -45,8 +47,17 @@ func RunExtension(extension http.Handler) {
 		}
 	}()
 
-	<-osSignals
-	srv.Shutdown(context.Background())
+	log.Println("server is listening on port", port)
 
+	sig := <-osSignals
+	log.Printf("Received signal %v, shutting down server...\n", sig)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("server.Shutdown(): %v\n", err)
+	}
+
+	log.Println("server gracefully shut down")
 	wgServerClosed.Wait()
 }
