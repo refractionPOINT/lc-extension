@@ -42,6 +42,12 @@ type CLIExtension struct {
 	Descriptors map[CLIName]CLIDescriptor
 
 	extension *core.Extension
+
+	// Only used in unit tests to control the behavior of stopThisInstance and
+	// sending data to webhook
+	// TODO: Consider refactoring into package level function or interface...
+	DisableStop                 bool
+	DisableSendToWebhookAdapter bool
 }
 
 type CLIRunRequest struct {
@@ -208,6 +214,8 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 	}
 
 	l.extension = x
+	l.DisableStop = false
+	l.DisableSendToWebhookAdapter = false
 
 	// Start processing.
 	if err := x.Init(); err != nil {
@@ -339,12 +347,14 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
-	if err := e.extension.SendToWebhookAdapter(o, hook); err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter: %v", err))
+	if !e.DisableSendToWebhookAdapter {
+		if err := e.extension.SendToWebhookAdapter(o, hook); err != nil {
+			e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter: %v", err))
+		}
 	}
 
 	if err != nil {
-		// For the time being, we retry all other errors exception timed + canceled.
+		// For the time being, we retry all other errors exception context timeout + canceled.
 		var isRetriable = true
 
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -397,6 +407,11 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 }
 
 func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest, error string) {
+	if e.DisableStop {
+		e.Logger.Info("stopThisInstance disabled in testing mode")
+		return
+	}
+
 	if error == "" {
 		e.Logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))
 	} else {
