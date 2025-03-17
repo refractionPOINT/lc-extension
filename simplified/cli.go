@@ -62,6 +62,10 @@ const commandArgumentsMaxSize = 1024 * 10
 // Maximum number of items for CLI arguments when specified as a list / parsing string argument to a list
 const commandArgumentsMaxCount = 50
 
+func Bool(v bool) *bool {
+	return &v
+}
+
 func (l *CLIExtension) Init() (*core.Extension, error) {
 	isSingleTool := len(l.Descriptors) == 1
 
@@ -254,7 +258,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		if err != nil {
 			e.Logger.Info(fmt.Sprintf("failed to parse command line for %s and tool %s: %v", o.GetOID(), request.Tool, err))
 			doRunResp = common.Response{
-				Error: fmt.Sprintf("failed to parse command line: %v", err),
+				Error:     fmt.Sprintf("failed to parse command line: %v", err),
+				Retriable: Bool(false),
 			}
 			return doRunResp
 		}
@@ -264,7 +269,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	if len(request.CommandLine) > commandArgumentsMaxSize {
 		e.Logger.Info(fmt.Sprintf("command line is too long for %s and tool %s, got %d, max size is %d", o.GetOID(), request.Tool, len(request.CommandLine), commandArgumentsMaxSize))
 		doRunResp = common.Response{
-			Error: fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
+			Error:     fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
+			Retriable: Bool(false),
 		}
 		return doRunResp
 	}
@@ -272,7 +278,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	if len(request.CommandTokens) > commandArgumentsMaxCount {
 		e.Logger.Info(fmt.Sprintf("command arguments are too long for %s and tool %s, got %d, max count is %d", o.GetOID(), request.Tool, len(request.CommandTokens), commandArgumentsMaxCount))
 		doRunResp = common.Response{
-			Error: fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
+			Error:     fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
+			Retriable: Bool(false),
 		}
 		return doRunResp
 	}
@@ -290,7 +297,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		if !ok {
 			e.Logger.Info(fmt.Sprintf("unknown tool for %s: %s", o.GetOID(), request.Tool))
 			doRunResp = common.Response{
-				Error: fmt.Sprintf("unknown tool: %s", request.Tool),
+				Error:     fmt.Sprintf("unknown tool: %s", request.Tool),
+				Retriable: Bool(false),
 			}
 			return doRunResp
 		}
@@ -336,9 +344,19 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	}
 
 	if err != nil {
+		// For the time being, we retry all other errors exception timed + canceled.
+		var isRetriable = true
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			isRetriable = false
+		} else if errors.Is(err, context.Canceled) {
+			isRetriable = false
+		}
+
 		doRunResp = common.Response{
-			Data:  &resp,
-			Error: err.Error(),
+			Data:      &resp,
+			Error:     err.Error(),
+			Retriable: Bool(isRetriable),
 		}
 		return doRunResp
 	}

@@ -224,6 +224,14 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if response.Error != "" {
+		// TODO: In the future we should support more detailed error handling and error types such as
+		// validation error, etc. and return appropriate status code (e.g. 400 for validation error, etc.)
+		// For the time being we return 503 for retryable errors and 500 for non-retryable errors.
+		if response.IsRetriable() {
+			e.respondAndLog(w, http.StatusServiceUnavailable, &response)
+			return
+		}
+
 		e.respondAndLog(w, http.StatusInternalServerError, &response)
 		return
 	}

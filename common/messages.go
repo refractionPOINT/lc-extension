@@ -93,11 +93,22 @@ type EventMessage struct {
 // Format of responses from an Extension webhook.
 type Response struct {
 	Error             string                `json:"error" msgpack:"error"`
+	Retriable         *bool                 `json:"retriable,omitempty" msgpack:"retriable,omitempty"` // True if this error is retriable. This only applies to Responses where Error field is set. If not provided, every Response with Error set is considered to be retriable.
 	Version           uint64                `json:"version" msgpack:"version"`
 	Data              interface{}           `json:"data,omitempty" msgpack:"data,omitempty"`
 	SensorStateChange *SensorUpdate         `json:"ssc,omitempty" msgpack:"ssc,omitempty"` // For internal use only.
 	Continuations     []ContinuationRequest `json:"continuations,omitempty" msgpack:"continuations,omitempty"`
 	Metrics           *MetricReport         `json:"metrics,omitempty" msgpack:"metrics,omitempty"`
+}
+
+// Retriable returns true if Reiable field is either not provided (nil) or explicitly set to true.
+// This is needed for backward compatibility reasons - for now, we want to retry every request
+// which either has Retriable set to true or does not have this field set at all.
+func (r *Response) IsRetriable() bool {
+	if r.Retriable == nil {
+		return true
+	}
+	return *r.Retriable
 }
 
 type EventName = string
