@@ -42,12 +42,6 @@ type CLIExtension struct {
 	Descriptors map[CLIName]CLIDescriptor
 
 	extension *core.Extension
-
-	// Only used in unit tests to control the behavior of stopThisInstance and
-	// sending data to webhook
-	// TODO: Consider refactoring into package level function or interface...
-	DisableStop                 bool
-	DisableSendToWebhookAdapter bool
 }
 
 type CLIRunRequest struct {
@@ -67,6 +61,35 @@ const commandArgumentsMaxSize = 1024 * 10
 
 // Maximum number of items for CLI arguments when specified as a list / parsing string argument to a list
 const commandArgumentsMaxCount = 50
+
+// Default implementation of SendToWebhookAdapterFunc. Only to be overriden by tests.
+var sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
+	return ext.SendToWebhookAdapter(o, hook)
+}
+
+// Default implementation of stopThisInstance. Only to be overriden by tests.
+var stopThisInstanceFunc = func(logger limacharlie.LCLogger, o *limacharlie.Organization, request *CLIRunRequest, error string) {
+	if error == "" {
+		logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))
+	} else {
+		logger.Info(fmt.Sprintf("stopping instance after failed processing for oid %s and tool %s: %s", o.GetOID(), request.Tool, error))
+	}
+
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to find process: %v", err))
+		return
+	}
+
+	// Send SIGTERM to the current process.
+	if err := p.Signal(syscall.SIGTERM); err != nil {
+		logger.Error(fmt.Sprintf("failed to send SIGTERM: %v", err))
+		return
+	}
+
+	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
+	// X seconds?
+}
 
 func Bool(v bool) *bool {
 	return &v
@@ -214,8 +237,6 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 	}
 
 	l.extension = x
-	l.DisableStop = false
-	l.DisableSendToWebhookAdapter = false
 
 	// Start processing.
 	if err := x.Init(); err != nil {
@@ -347,10 +368,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
-	if !e.DisableSendToWebhookAdapter {
-		if err := e.extension.SendToWebhookAdapter(o, hook); err != nil {
-			e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter: %v", err))
-		}
+	if err := sendToWebhookAdapterFunc(e.extension, o, hook); err != nil {
+		e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter: %v", err))
 	}
 
 	if err != nil {
@@ -407,29 +426,5 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 }
 
 func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest, error string) {
-	if e.DisableStop {
-		e.Logger.Info("stopThisInstance disabled in testing mode")
-		return
-	}
-
-	if error == "" {
-		e.Logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))
-	} else {
-		e.Logger.Info(fmt.Sprintf("stopping instance after failed processing for oid %s and tool %s: %s", o.GetOID(), request.Tool, error))
-	}
-
-	p, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
-		return
-	}
-
-	// Send SIGTERM to the current process.
-	if err := p.Signal(syscall.SIGTERM); err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to send SIGTERM: %v", err))
-		return
-	}
-
-	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
-	// X seconds?
+	stopThisInstanceFunc(e.Logger, o, request, error)
 }

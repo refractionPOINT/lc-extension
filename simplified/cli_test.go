@@ -31,6 +31,14 @@ var dummyCoreExt = &core.Extension{
 	SecretKey:     "dummy",
 }
 
+func init() {
+	sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
+		return nil
+	}
+	stopThisInstanceFunc = func(logger limacharlie.LCLogger, o *limacharlie.Organization, req *CLIRunRequest, errMsg string) {
+	}
+}
+
 func TestDoRun_ErrorHandling(t *testing.T) {
 	// Create a dummy organization and logger.
 	org, err := limacharlie.NewOrganizationFromClientOptions(dummyOpt, dummyLogger{})
@@ -55,12 +63,10 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 
 	// Start with a CLIExtension that has one descriptor ("dummy").
 	cliExt := &CLIExtension{
-		Name:                        "test-extension",
-		SecretKey:                   "secret",
-		Logger:                      log,
-		Descriptors:                 map[CLIName]CLIDescriptor{"dummy": {ProcessCommand: dummyHandlerSuccess, CredentialsFormat: "", ExampleCommand: "dummy"}},
-		DisableStop:                 true,
-		DisableSendToWebhookAdapter: true,
+		Name:        "test-extension",
+		SecretKey:   "secret",
+		Logger:      log,
+		Descriptors: map[CLIName]CLIDescriptor{"dummy": {ProcessCommand: dummyHandlerSuccess, CredentialsFormat: "", ExampleCommand: "dummy"}},
 	}
 
 	// Test case: invalid command line (shlex.Split error).
@@ -130,9 +136,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 				"tool1": {ProcessCommand: dummyHandlerSuccess, CredentialsFormat: "", ExampleCommand: "cmd"},
 				"tool2": {ProcessCommand: dummyHandlerSuccess, CredentialsFormat: "", ExampleCommand: "cmd"},
 			},
-			extension:                   dummyCoreExt,
-			DisableStop:                 true,
-			DisableSendToWebhookAdapter: true,
+			extension: dummyCoreExt,
 		}
 		req := &CLIRunRequest{
 			CommandLine:   "cmd",
@@ -203,6 +207,32 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 		}
 		if resp.Retriable == nil || !*resp.Retriable {
 			t.Errorf("expected retriable to be true for generic error")
+		}
+	})
+
+	// Test case: ProcessCommand returns a generic error, which should be retriable.
+	t.Run("ProcessCommand generic retriable error", func(t *testing.T) {
+		cliExt.Descriptors["dummy"] = CLIDescriptor{ProcessCommand: func(ctx context.Context, tokens []string, creds string) (CLIReturnData, error) {
+			return CLIReturnData{}, errors.New("temporary error")
+		}, CredentialsFormat: "", ExampleCommand: "cmd"}
+
+		req := &CLIRunRequest{
+			CommandLine:   "cmd",
+			CommandTokens: []string{"cmd"},
+			Credentials:   "creds",
+			Tool:          "dummy",
+		}
+
+		resp := cliExt.doRun(org, req, "ident", "inv")
+
+		// Expect the error message to be "temporary error"
+		if resp.Error != "temporary error" {
+			t.Errorf("expected error: 'temporary error', got: %s", resp.Error)
+		}
+
+		// Check that the error is retriable
+		if resp.Retriable == nil || !*resp.Retriable {
+			t.Errorf("expected retriable to be true for generic retriable error")
 		}
 	})
 
