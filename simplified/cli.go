@@ -62,12 +62,12 @@ const commandArgumentsMaxSize = 1024 * 10
 // Maximum number of items for CLI arguments when specified as a list / parsing string argument to a list
 const commandArgumentsMaxCount = 50
 
-// Default implementation of SendToWebhookAdapterFunc. Only to be overriden by tests.
+// Default implementation of SendToWebhookAdapterFunc. Only to be overridden by tests.
 var sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
 	return ext.SendToWebhookAdapter(o, hook)
 }
 
-// Default implementation of stopThisInstance. Only to be overriden by tests.
+// Default implementation of stopThisInstance. Only to be overridden by tests.
 var stopThisInstanceFunc = func(logger limacharlie.LCLogger, o *limacharlie.Organization, request *CLIRunRequest, error string) {
 	if error == "" {
 		logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))

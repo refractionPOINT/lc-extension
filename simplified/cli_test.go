@@ -27,19 +27,60 @@ var dummyOpt = limacharlie.ClientOptions{
 }
 
 var dummyCoreExt = &core.Extension{
-	ExtensionName: "dummy",
+	ExtensionName: "dummy-name",
 	SecretKey:     "dummy",
 }
 
-func init() {
+func TestDoRun_ErrorHandling(t *testing.T) {
+	sendToWebhookCalled := false
+	stopThisInstanceCalled := false
+
+	originalSendToWebhook := sendToWebhookAdapterFunc
+	originalStopThisInstance := stopThisInstanceFunc
+
+	defer func() {
+		sendToWebhookAdapterFunc = originalSendToWebhook
+		stopThisInstanceFunc = originalStopThisInstance
+	}()
+
 	sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
+		if ext.ExtensionName != "dummy-name" {
+			t.Errorf("expected extension name 'test-extension', got %s", ext.ExtensionName)
+		}
+
+		if o.GetOID() != dummyOpt.OID {
+			t.Errorf("expected OID %s, got %s", dummyOpt.OID, o.GetOID())
+		}
+
+		if hook["action"] != "run" {
+			t.Errorf("expected action 'run', got %s", hook["action"])
+		}
+
+		if hook["inv_id"] != "inv" {
+			t.Errorf("expected inv_ident 'inv', got %s", hook["inv_ident"])
+		}
+
+		// Verify credentials are masked.
+		hookRequest, ok := hook["request"].(CLIRunRequest)
+		if !ok {
+			t.Fatalf("expected hook request to be of type CLIRunRequest, got: %T", hook["request"])
+		}
+
+		if hookRequest.Credentials != "REDACTED" {
+			t.Errorf("expected credentials to be 'REDACTED', but got: %s", hookRequest.Credentials)
+		}
+
+		sendToWebhookCalled = true
 		return nil
 	}
 	stopThisInstanceFunc = func(logger limacharlie.LCLogger, o *limacharlie.Organization, req *CLIRunRequest, errMsg string) {
-	}
-}
+		if o.GetOID() != dummyOpt.OID {
+			t.Errorf("expected OID %s, got %s", dummyOpt.OID, o.GetOID())
+		}
 
-func TestDoRun_ErrorHandling(t *testing.T) {
+		stopThisInstanceCalled = true
+	}
+
 	// Create a dummy organization and logger.
 	org, err := limacharlie.NewOrganizationFromClientOptions(dummyOpt, dummyLogger{})
 	if err != nil {
@@ -67,6 +108,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 		SecretKey:   "secret",
 		Logger:      log,
 		Descriptors: map[CLIName]CLIDescriptor{"dummy": {ProcessCommand: dummyHandlerSuccess, CredentialsFormat: "", ExampleCommand: "dummy"}},
+		extension:   dummyCoreExt,
 	}
 
 	// Test case: invalid command line (shlex.Split error).
@@ -207,6 +249,12 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 		}
 		if resp.Retriable == nil || !*resp.Retriable {
 			t.Errorf("expected retriable to be true for generic error")
+		}
+		if !sendToWebhookCalled {
+			t.Errorf("expected sendToWebhookAdapterFunc to be called, but it wasn't")
+		}
+		if !stopThisInstanceCalled {
+			t.Errorf("expected stopThisInstanceFunc to be called, but it wasn't")
 		}
 	})
 
