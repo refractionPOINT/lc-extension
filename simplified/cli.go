@@ -342,8 +342,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	// Log to the adapter.
 	anonReq := *request
 	anonReq.Credentials = "REDACTED"
-	// NOTE(Tomaz): request.CommandLine and request.CommandTokens could potentially also contain sensitive information
-	// so perhaps we should try to sanitize / mask it as well
+	anonReq.CommandLine = core.MaskSecrets(request.CommandLine, []string{request.Credentials})
+	anonReq.CommandTokens = core.MaskSecretsInSlice(request.CommandTokens, []string{request.Credentials})
 
 	hook := limacharlie.Dict{
 		"action":  "run",

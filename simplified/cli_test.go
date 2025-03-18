@@ -60,7 +60,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			t.Errorf("expected inv_ident 'inv', got %s", hook["inv_ident"])
 		}
 
-		// Verify credentials are masked.
+		// Verify credentials are masked in various request fields
 		hookRequest, ok := hook["request"].(CLIRunRequest)
 		if !ok {
 			t.Fatalf("expected hook request to be of type CLIRunRequest, got: %T", hook["request"])
@@ -68,6 +68,14 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 
 		if hookRequest.Credentials != "REDACTED" {
 			t.Errorf("expected credentials to be 'REDACTED', but got: %s", hookRequest.Credentials)
+		}
+
+		if strings.Contains(hookRequest.CommandLine, "linewithsecret") && !strings.Contains(hookRequest.CommandLine, "REDACTED") {
+			t.Errorf("expected command line to be redacted, but it wasn't")
+		}
+
+		if strings.Contains(strings.Join(hookRequest.CommandTokens, "argwithsecret"), " ") && !strings.Contains(strings.Join(hookRequest.CommandTokens, " "), "REDACTED") {
+			t.Errorf("expected command line to be redacted, but it wasn't")
 		}
 
 		sendToWebhookCalled = true
@@ -288,8 +296,8 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 	t.Run("ProcessCommand success", func(t *testing.T) {
 		cliExt.Descriptors["dummy"] = CLIDescriptor{ProcessCommand: dummyHandlerSuccess, CredentialsFormat: "", ExampleCommand: "cmd"}
 		req := &CLIRunRequest{
-			CommandLine:   "cmd",
-			CommandTokens: []string{"cmd"},
+			CommandLine:   "cmd creds linewithsecret",
+			CommandTokens: []string{"cmd", "creds", "argwithsecret"},
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
