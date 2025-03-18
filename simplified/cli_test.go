@@ -327,3 +327,31 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 		}
 	})
 }
+
+func TestIsErrorRetriable(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"Nil error", nil, false},
+		{"Context deadline exceeded", context.DeadlineExceeded, false},
+		{"Context canceled", context.Canceled, false},
+		{"Invalid credentials error", ErrInvalidCredentials, false},
+		{"Command error (auth)", NewCommandError("auth"), false},
+		{"Command error (signin)", NewCommandError("signin"), false},
+		{"Random error", errors.New("random error"), true},
+		{"Wrapped retriable error", fmt.Errorf("wrapping: %w", errors.New("network failure")), true},
+		{"Wrapped invalid credentials error", fmt.Errorf("wrapping: %w", ErrInvalidCredentials), false},
+		{"Wrapped context canceled error", fmt.Errorf("wrapping: %w", context.Canceled), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isErrorRetriable(tt.err)
+			if got != tt.expected {
+				t.Errorf("isErrorRetriable(%v) = %v; want %v", tt.err, got, tt.expected)
+			}
+		})
+	}
+}

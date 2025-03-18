@@ -52,7 +52,23 @@ type CLIRunRequest struct {
 }
 
 var errUnknownTool = errors.New("unknown tool")
+
+// Common errors which can be used by custom CLI extensions to signal specific
+// error conditions.
 var ErrInvalidCredentials = errors.New("invalid credentials")
+
+// CommandError represents an error when a specific CLI command is not allowed.
+type CommandError struct {
+	Command string
+}
+
+func (e *CommandError) Error() string {
+	return fmt.Sprintf("%s command not allowed", e.Command)
+}
+
+func NewCommandError(command string) error {
+	return &CommandError{Command: command}
+}
 
 // Timeout for CLI command execution
 const toolCommandExecutionTimeout = 9 * time.Minute
@@ -374,21 +390,10 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	}
 
 	if err != nil {
-		// For the time being, we retry all other errors exception context timeout, canceled and invalid credentials.
-		isRetriable := true
-
-		if errors.Is(err, context.DeadlineExceeded) {
-			isRetriable = false
-		} else if errors.Is(err, context.Canceled) {
-			isRetriable = false
-		} else if errors.Is(err, ErrInvalidCredentials) {
-			isRetriable = false
-		}
-
 		doRunResp = common.Response{
 			Data:      &resp,
 			Error:     err.Error(),
-			Retriable: Bool(isRetriable),
+			Retriable: Bool(isErrorRetriable(err)),
 		}
 		return doRunResp
 	}
@@ -430,4 +435,27 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 
 func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest, error string) {
 	stopThisInstanceFunc(e.Logger, o, request, error)
+}
+
+// Return true if a specific error is considered retriable.
+func isErrorRetriable(err error) bool {
+	if err == nil {
+		return false
+	}
+	// For the time being, we retry all other errors exception context timeout, canceled, invalid credentials
+	// and common command errors which are not retriable.
+	isRetriable := true
+
+	var cmdErr *CommandError
+	if errors.Is(err, context.DeadlineExceeded) {
+		isRetriable = false
+	} else if errors.Is(err, context.Canceled) {
+		isRetriable = false
+	} else if errors.Is(err, ErrInvalidCredentials) {
+		isRetriable = false
+	} else if errors.As(err, &cmdErr) {
+		isRetriable = false
+	}
+
+	return isRetriable
 }
