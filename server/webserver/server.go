@@ -23,8 +23,9 @@ func RunExtension(extension http.Handler) {
 		port = int(p)
 	}
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: extension,
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           extension,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	wgServerClosed := sync.WaitGroup{}

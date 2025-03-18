@@ -18,8 +18,10 @@ type Message struct {
 }
 
 // Recurring messages used by LimaCharlie to see if an Extension is still available.
-type HeartBeatMessage struct{}
-type HeartBeatResponse struct{}
+type (
+	HeartBeatMessage  struct{}
+	HeartBeatResponse struct{}
+)
 
 // Message indicating an error LimaCharlie encountered.
 type ErrorReportMessage struct {
@@ -43,13 +45,15 @@ type View struct {
 }
 
 // A request to get the schema required by the Extension for its configuration and requests.
-type SchemaRequestMessage struct{}
-type SchemaRequestResponse struct {
-	Views          []View         `json:"views,omitempty" msgpack:"views,omitempty"`
-	Config         SchemaObject   `json:"config_schema" msgpack:"config_schema"`
-	Request        RequestSchemas `json:"request_schema" msgpack:"request_schema"`
-	RequiredEvents []EventName    `json:"required_events" msgpack:"required_events"`
-}
+type (
+	SchemaRequestMessage  struct{}
+	SchemaRequestResponse struct {
+		Views          []View         `json:"views,omitempty" msgpack:"views,omitempty"`
+		Config         SchemaObject   `json:"config_schema" msgpack:"config_schema"`
+		Request        RequestSchemas `json:"request_schema" msgpack:"request_schema"`
+		RequiredEvents []EventName    `json:"required_events" msgpack:"required_events"`
+	}
+)
 
 // A set of org credentials the Extension can use.
 type OrgAccessData struct {

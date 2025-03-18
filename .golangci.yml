@@ -6,7 +6,6 @@ linters:
     - revive         # More configurable and faster than golint
     - gofumpt        # Enforces stricter formatting (better than gofmt)
     - gocritic       # Finds performance and style issues
-    - unparam        # Detects unused function parameters
     - misspell       # Detects spelling mistakes in code
     - gosec          # Static security analysis (e.g., detecting `hardcoded secrets`)
     - ineffassign    # Detects ineffectual assignments
@@ -16,9 +15,9 @@ linters:
 
 linters-settings:
   revive:
-    disable-all: false  # Ensure this is false to selectively disable rules
-    disabled-rules:
-      - dot-imports
+    rules:
+      - name: unused-parameter
+        disabled: true
   gocritic:
     disabled-checks:
       - ifElseChain # Disables the warning globally

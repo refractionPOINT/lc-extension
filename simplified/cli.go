@@ -140,21 +140,21 @@ func (e *CLIExtension) Init() (*core.Extension, error) {
 				ParameterDefinitions: common.SchemaObject{
 					Requirements: requiredFields,
 					Fields: map[common.SchemaKey]common.SchemaElement{
-						"command_line": common.SchemaElement{
+						"command_line": {
 							DataType:     common.SchemaDataTypes.String,
 							Label:        "Command Line",
 							Description:  "The command to run.",
 							IsList:       false,
 							DisplayIndex: 3,
 						},
-						"command_tokens": common.SchemaElement{
+						"command_tokens": {
 							DataType:     common.SchemaDataTypes.String,
 							Label:        "Command Parameters",
 							Description:  "The command parameters to run as a tokenized list.",
 							IsList:       true,
 							DisplayIndex: 4,
 						},
-						"credentials": common.SchemaElement{
+						"credentials": {
 							DataType:     common.SchemaDataTypes.Secret,
 							Label:        "Credentials",
 							Description:  `The credentials to use for the command. A GCP JSON key, a DigitalOcean Access Token or an AWS "accessKeyID/secretAccessKey" pair.`,
@@ -164,24 +164,24 @@ func (e *CLIExtension) Init() (*core.Extension, error) {
 				},
 				ResponseDefinition: &common.SchemaObject{
 					Fields: map[common.SchemaKey]common.SchemaElement{
-						"output_list": common.SchemaElement{
+						"output_list": {
 							DataType:    common.SchemaDataTypes.Object,
 							Label:       "Outputs",
 							Description: "The output JSON objects of the command.",
 							IsList:      true,
 						},
-						"output_dict": common.SchemaElement{
+						"output_dict": {
 							DataType:    common.SchemaDataTypes.Object,
 							Label:       "Output",
 							Description: "The output JSON object of the command.",
 							IsList:      false,
 						},
-						"output_string": common.SchemaElement{
+						"output_string": {
 							DataType:    common.SchemaDataTypes.String,
 							Label:       "Raw Output",
 							Description: "The non-JSON output of the command.",
 						},
-						"status_code": common.SchemaElement{
+						"status_code": {
 							DataType:    common.SchemaDataTypes.Integer,
 							Label:       "Status Code",
 							Description: "The status of the command.",
@@ -374,7 +374,7 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 
 	if err != nil {
 		// For the time being, we retry all other errors exception context timeout + canceled.
-		var isRetriable = true
+		isRetriable := true
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			isRetriable = false

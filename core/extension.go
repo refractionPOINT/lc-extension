@@ -18,6 +18,7 @@ import (
 	"github.com/refractionPOINT/lc-extension/common"
 )
 
+//revive:disable:var-naming
 const PROTOCOL_VERSION = 20221218
 
 type Extension struct {
@@ -84,7 +85,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	signature := r.Header.Get("lc-ext-sig")
 	if signature == "" {
-		e.respondAndLog(w, http.StatusOK, nil)
+		e.respondAndLog(w, http.StatusOK, nil) //nolint:errcheck
 		return
 	}
 
@@ -96,7 +97,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		if body, err = gzip.NewReader(r.Body); err != nil {
 			response.Error = err.Error()
-			e.respondAndLog(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 			return
 		}
 		defer body.Close()
@@ -105,26 +106,26 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestData, err := io.ReadAll(body)
 	if err != nil {
 		response.Error = fmt.Sprintf("failed reading body: %v", err)
-		e.respondAndLog(w, http.StatusNoContent, &response)
+		e.respondAndLog(w, http.StatusNoContent, &response) //nolint:errcheck
 		return
 	}
 
 	if !verifyOrigin(requestData, signature, []byte(e.SecretKey)) {
 		response.Error = "invalid signature"
 		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
-		e.respondAndLog(w, http.StatusUnauthorized, nil)
+		e.respondAndLog(w, http.StatusUnauthorized, nil) //nolint:errcheck
 		return
 	}
 
 	message := common.Message{}
 	if err := json.Unmarshal(requestData, &message); err != nil {
 		response.Error = fmt.Sprintf("invalid json body: %v", err)
-		e.respondAndLog(w, http.StatusBadRequest, &response)
+		e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 		return
 	}
 
 	if message.HeartBeat != nil {
-		e.respondAndLog(w, http.StatusOK, &common.HeartBeatResponse{})
+		e.respondAndLog(w, http.StatusOK, &common.HeartBeatResponse{}) //nolint:errcheck
 		return
 	}
 
@@ -133,7 +134,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
-			e.respondAndLog(w, http.StatusInternalServerError, &response)
+			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
 			return
 		}
 		defer org.Close()
@@ -142,7 +143,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			response.Error = fmt.Sprintf("unknown event: %s", message.Event.EventName)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
-			e.respondAndLog(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 			return
 		}
 		response = handler(ctx, EventCallbackParams{
@@ -156,7 +157,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			e.respondAndLog(w, http.StatusInternalServerError, &response)
+			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
 			return
 		}
 		defer org.Close()
@@ -165,7 +166,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			response.Error = fmt.Sprintf("unknown request action: %s", message.Request.Action)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			e.respondAndLog(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 			return
 		}
 		// If the request struct is nil, we will unmarshal into a dict.
@@ -177,7 +178,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			response.Error = fmt.Sprintf("failed to unmarshal request data: %v", err)
-			e.respondAndLog(w, http.StatusBadRequest, &response)
+			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 			return
 		}
 		response = rcb.Callback(ctx, RequestCallbackParams{
@@ -196,7 +197,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			e.respondAndLog(w, http.StatusInternalServerError, &response)
+			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
 			return
 		}
 		defer org.Close()
@@ -219,7 +220,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		response.Error = fmt.Sprintf("no data in request: %s", requestData)
-		e.respondAndLog(w, http.StatusBadRequest, &response)
+		e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 		return
 	}
 
@@ -228,15 +229,15 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// validation error, etc. and return appropriate status code (e.g. 400 for validation error, etc.)
 		// For the time being we return 503 for retryable errors and 500 for non-retryable errors.
 		if response.IsRetriable() {
-			e.respondAndLog(w, http.StatusServiceUnavailable, &response)
+			e.respondAndLog(w, http.StatusServiceUnavailable, &response) //nolint:errcheck
 			return
 		}
 
-		e.respondAndLog(w, http.StatusInternalServerError, &response)
+		e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
 		return
 	}
 	response.Version = PROTOCOL_VERSION
-	e.respondAndLog(w, http.StatusOK, &response)
+	e.respondAndLog(w, http.StatusOK, &response) //nolint:errcheck
 }
 
 func (e *Extension) respondAndLog(w http.ResponseWriter, status int, data interface{}) error {

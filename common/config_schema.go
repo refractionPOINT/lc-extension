@@ -87,7 +87,7 @@ type SchemaElement struct {
 // 	},
 // 	"suppression": {
 // 		"description": "suppression configurations",
-// 		"is_requried": false,
+// 		"is_required": false,
 // 		"data_type": "object",
 // 		"display_index": 1,
 // 		"object": {
