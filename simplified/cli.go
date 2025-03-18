@@ -52,6 +52,7 @@ type CLIRunRequest struct {
 }
 
 var errUnknownTool = errors.New("unknown tool")
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
 // Timeout for CLI command execution
 const toolCommandExecutionTimeout = 9 * time.Minute
@@ -373,12 +374,14 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	}
 
 	if err != nil {
-		// For the time being, we retry all other errors exception context timeout + canceled.
+		// For the time being, we retry all other errors exception context timeout, canceled and invalid credentials.
 		isRetriable := true
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			isRetriable = false
 		} else if errors.Is(err, context.Canceled) {
+			isRetriable = false
+		} else if errors.Is(err, ErrInvalidCredentials) {
 			isRetriable = false
 		}
 
