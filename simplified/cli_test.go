@@ -1,3 +1,4 @@
+//nolint:unparam
 package simplified
 
 import (
@@ -14,12 +15,12 @@ import (
 // dummyLogger is a minimal implementation of limacharlie.LCLogger.
 type dummyLogger struct{}
 
-func (d dummyLogger) Info(msg string)  {}
-func (d dummyLogger) Error(msg string) {}
-func (d dummyLogger) Debug(msg string) {}
-func (d dummyLogger) Warn(msg string)  {}
-func (d dummyLogger) Fatal(msg string) {}
-func (d dummyLogger) Trace(msg string) {}
+func (d dummyLogger) Info(_ string)  {}
+func (d dummyLogger) Error(_ string) {}
+func (d dummyLogger) Debug(_ string) {}
+func (d dummyLogger) Warn(_ string)  {}
+func (d dummyLogger) Fatal(_ string) {}
+func (d dummyLogger) Trace(_ string) {}
 
 // dummyClientOptions holds minimal options to satisfy the client requirements.
 var dummyOpt = limacharlie.ClientOptions{

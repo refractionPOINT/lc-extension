@@ -95,15 +95,15 @@ func Bool(v bool) *bool {
 	return &v
 }
 
-func (l *CLIExtension) Init() (*core.Extension, error) {
-	isSingleTool := len(l.Descriptors) == 1
+func (e *CLIExtension) Init() (*core.Extension, error) {
+	isSingleTool := len(e.Descriptors) == 1
 
 	requiredFields := [][]common.SchemaKey{{"command_tokens", "command_line"}, {"credentials"}}
 	if !isSingleTool {
 		requiredFields = append(requiredFields, []common.SchemaKey{"tool"})
 	}
 	toolList := []interface{}{}
-	for k := range l.Descriptors {
+	for k := range e.Descriptors {
 		toolList = append(toolList, k)
 	}
 	toolField := common.SchemaElement{
@@ -118,8 +118,8 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 		longDesc = fmt.Sprintf("Run a CLI command using the %s tool by providing a list of command line parameters to provide to it.", toolList[0])
 	}
 	x := &core.Extension{
-		ExtensionName: l.Name,
-		SecretKey:     l.SecretKey,
+		ExtensionName: e.Name,
+		SecretKey:     e.SecretKey,
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{},
 		// The schema defining what requests to this Extension should look like.
@@ -198,22 +198,22 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 
 	x.Callbacks = core.ExtensionCallbacks{
 		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config limacharlie.Dict) common.Response {
-			l.Logger.Info(fmt.Sprintf("validate config from %s", org.GetOID()))
+			e.Logger.Info(fmt.Sprintf("validate config from %s", org.GetOID()))
 			return common.Response{}
 		},
 		RequestHandlers: map[common.ActionName]core.RequestCallback{
 			"run": {
 				RequestStruct: &CLIRunRequest{},
 				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
-					return l.doRun(params.Org, params.Request.(*CLIRunRequest), params.Ident, params.InvestigationID)
+					return e.doRun(params.Org, params.Request.(*CLIRunRequest), params.Ident, params.InvestigationID)
 				},
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
 			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
-				l.Logger.Info(fmt.Sprintf("subscribe to %s", params.Org.GetOID()))
-				if err := l.installRulesIfNeeded(params.Org); err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to install rules: %v", err))
+				e.Logger.Info(fmt.Sprintf("subscribe to %s", params.Org.GetOID()))
+				if err := e.installRulesIfNeeded(params.Org); err != nil {
+					e.Logger.Error(fmt.Sprintf("failed to install rules: %v", err))
 					return common.Response{
 						Error: err.Error(),
 					}
@@ -221,9 +221,9 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 				return common.Response{}
 			},
 			common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
-				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", params.Org.GetOID()))
-				if err := l.uninstallAllRules(params.Org); err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to uninstall rules: %v", err))
+				e.Logger.Info(fmt.Sprintf("unsubscribe from %s", params.Org.GetOID()))
+				if err := e.uninstallAllRules(params.Org); err != nil {
+					e.Logger.Error(fmt.Sprintf("failed to uninstall rules: %v", err))
 					return common.Response{
 						Error: err.Error(),
 					}
@@ -232,11 +232,11 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 			},
 		},
 		ErrorHandler: func(erm *common.ErrorReportMessage) {
-			l.Logger.Error(fmt.Sprintf("received error from LC for %s: %s", erm.Oid, erm.Error))
+			e.Logger.Error(fmt.Sprintf("received error from LC for %s: %s", erm.Oid, erm.Error))
 		},
 	}
 
-	l.extension = x
+	e.extension = x
 
 	// Start processing.
 	if err := x.Init(); err != nil {
