@@ -96,17 +96,32 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 	}
 	log := dummyLogger{}
 
+	assertCommonHandlerArguments := func(ctx context.Context, tokens []string, creds string) {
+		if ctx == nil {
+			t.Errorf("expected context to be non-nil")
+		}
+		if len(tokens) == 0 {
+			t.Errorf("expected tokens to be non-empty")
+		}
+		if creds == "" {
+			t.Errorf("expected creds to be non-empty")
+		}
+	}
 	// Dummy CLIHandlers to simulate different error conditions.
 	dummyHandlerSuccess := func(ctx context.Context, tokens []string, creds string) (CLIReturnData, error) {
+		assertCommonHandlerArguments(ctx, tokens, creds)
 		return CLIReturnData{OutputString: "success"}, nil
 	}
 	dummyHandlerDeadline := func(ctx context.Context, tokens []string, creds string) (CLIReturnData, error) {
+		assertCommonHandlerArguments(ctx, tokens, creds)
 		return CLIReturnData{}, context.DeadlineExceeded
 	}
 	dummyHandlerCanceled := func(ctx context.Context, tokens []string, creds string) (CLIReturnData, error) {
+		assertCommonHandlerArguments(ctx, tokens, creds)
 		return CLIReturnData{}, context.Canceled
 	}
 	dummyHandlerGeneric := func(ctx context.Context, tokens []string, creds string) (CLIReturnData, error) {
+		assertCommonHandlerArguments(ctx, tokens, creds)
 		return CLIReturnData{}, errors.New("generic error")
 	}
 
