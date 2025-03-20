@@ -53,6 +53,23 @@ type CLIRunRequest struct {
 
 var errUnknownTool = errors.New("unknown tool")
 
+// Common errors which can be used by custom CLI extensions to signal specific
+// error conditions.
+var ErrInvalidCredentials = errors.New("invalid credentials")
+
+// CommandError represents an error when a specific CLI command is not allowed.
+type CommandError struct {
+	Command string
+}
+
+func (e *CommandError) Error() string {
+	return fmt.Sprintf("%s command not allowed", e.Command)
+}
+
+func NewCommandError(command string) error {
+	return &CommandError{Command: command}
+}
+
 // Timeout for CLI command execution
 const toolCommandExecutionTimeout = 9 * time.Minute
 
@@ -62,15 +79,48 @@ const commandArgumentsMaxSize = 1024 * 10
 // Maximum number of items for CLI arguments when specified as a list / parsing string argument to a list
 const commandArgumentsMaxCount = 50
 
-func (l *CLIExtension) Init() (*core.Extension, error) {
-	isSingleTool := len(l.Descriptors) == 1
+// Default implementation of SendToWebhookAdapterFunc. Only to be overridden by tests.
+var sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
+	return ext.SendToWebhookAdapter(o, hook)
+}
+
+// Default implementation of stopThisInstance. Only to be overridden by tests.
+var stopThisInstanceFunc = func(logger limacharlie.LCLogger, o *limacharlie.Organization, request *CLIRunRequest, error string) {
+	if error == "" {
+		logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))
+	} else {
+		logger.Info(fmt.Sprintf("stopping instance after failed processing for oid %s and tool %s: %s", o.GetOID(), request.Tool, error))
+	}
+
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to find process: %v", err))
+		return
+	}
+
+	// Send SIGTERM to the current process.
+	if err := p.Signal(syscall.SIGTERM); err != nil {
+		logger.Error(fmt.Sprintf("failed to send SIGTERM: %v", err))
+		return
+	}
+
+	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
+	// X seconds?
+}
+
+func Bool(v bool) *bool {
+	return &v
+}
+
+func (e *CLIExtension) Init() (*core.Extension, error) {
+	isSingleTool := len(e.Descriptors) == 1
 
 	requiredFields := [][]common.SchemaKey{{"command_tokens", "command_line"}, {"credentials"}}
 	if !isSingleTool {
 		requiredFields = append(requiredFields, []common.SchemaKey{"tool"})
 	}
 	toolList := []interface{}{}
-	for k := range l.Descriptors {
+	for k := range e.Descriptors {
 		toolList = append(toolList, k)
 	}
 	toolField := common.SchemaElement{
@@ -85,8 +135,8 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 		longDesc = fmt.Sprintf("Run a CLI command using the %s tool by providing a list of command line parameters to provide to it.", toolList[0])
 	}
 	x := &core.Extension{
-		ExtensionName: l.Name,
-		SecretKey:     l.SecretKey,
+		ExtensionName: e.Name,
+		SecretKey:     e.SecretKey,
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{},
 		// The schema defining what requests to this Extension should look like.
@@ -107,21 +157,21 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 				ParameterDefinitions: common.SchemaObject{
 					Requirements: requiredFields,
 					Fields: map[common.SchemaKey]common.SchemaElement{
-						"command_line": common.SchemaElement{
+						"command_line": {
 							DataType:     common.SchemaDataTypes.String,
 							Label:        "Command Line",
 							Description:  "The command to run.",
 							IsList:       false,
 							DisplayIndex: 3,
 						},
-						"command_tokens": common.SchemaElement{
+						"command_tokens": {
 							DataType:     common.SchemaDataTypes.String,
 							Label:        "Command Parameters",
 							Description:  "The command parameters to run as a tokenized list.",
 							IsList:       true,
 							DisplayIndex: 4,
 						},
-						"credentials": common.SchemaElement{
+						"credentials": {
 							DataType:     common.SchemaDataTypes.Secret,
 							Label:        "Credentials",
 							Description:  `The credentials to use for the command. A GCP JSON key, a DigitalOcean Access Token or an AWS "accessKeyID/secretAccessKey" pair.`,
@@ -131,24 +181,24 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 				},
 				ResponseDefinition: &common.SchemaObject{
 					Fields: map[common.SchemaKey]common.SchemaElement{
-						"output_list": common.SchemaElement{
+						"output_list": {
 							DataType:    common.SchemaDataTypes.Object,
 							Label:       "Outputs",
 							Description: "The output JSON objects of the command.",
 							IsList:      true,
 						},
-						"output_dict": common.SchemaElement{
+						"output_dict": {
 							DataType:    common.SchemaDataTypes.Object,
 							Label:       "Output",
 							Description: "The output JSON object of the command.",
 							IsList:      false,
 						},
-						"output_string": common.SchemaElement{
+						"output_string": {
 							DataType:    common.SchemaDataTypes.String,
 							Label:       "Raw Output",
 							Description: "The non-JSON output of the command.",
 						},
-						"status_code": common.SchemaElement{
+						"status_code": {
 							DataType:    common.SchemaDataTypes.Integer,
 							Label:       "Status Code",
 							Description: "The status of the command.",
@@ -165,22 +215,22 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 
 	x.Callbacks = core.ExtensionCallbacks{
 		ValidateConfig: func(ctx context.Context, org *limacharlie.Organization, config limacharlie.Dict) common.Response {
-			l.Logger.Info(fmt.Sprintf("validate config from %s", org.GetOID()))
+			e.Logger.Info(fmt.Sprintf("validate config from %s", org.GetOID()))
 			return common.Response{}
 		},
 		RequestHandlers: map[common.ActionName]core.RequestCallback{
 			"run": {
 				RequestStruct: &CLIRunRequest{},
 				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
-					return l.doRun(params.Org, params.Request.(*CLIRunRequest), params.Ident, params.InvestigationID)
+					return e.doRun(params.Org, params.Request.(*CLIRunRequest), params.Ident, params.InvestigationID)
 				},
 			},
 		},
 		EventHandlers: map[common.EventName]core.EventCallback{
 			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
-				l.Logger.Info(fmt.Sprintf("subscribe to %s", params.Org.GetOID()))
-				if err := l.installRulesIfNeeded(params.Org); err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to install rules: %v", err))
+				e.Logger.Info(fmt.Sprintf("subscribe to %s", params.Org.GetOID()))
+				if err := e.installRulesIfNeeded(params.Org); err != nil {
+					e.Logger.Error(fmt.Sprintf("failed to install rules: %v", err))
 					return common.Response{
 						Error: err.Error(),
 					}
@@ -188,9 +238,9 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 				return common.Response{}
 			},
 			common.EventTypes.Unsubscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
-				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", params.Org.GetOID()))
-				if err := l.uninstallAllRules(params.Org); err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to uninstall rules: %v", err))
+				e.Logger.Info(fmt.Sprintf("unsubscribe from %s", params.Org.GetOID()))
+				if err := e.uninstallAllRules(params.Org); err != nil {
+					e.Logger.Error(fmt.Sprintf("failed to uninstall rules: %v", err))
 					return common.Response{
 						Error: err.Error(),
 					}
@@ -199,11 +249,11 @@ func (l *CLIExtension) Init() (*core.Extension, error) {
 			},
 		},
 		ErrorHandler: func(erm *common.ErrorReportMessage) {
-			l.Logger.Error(fmt.Sprintf("received error from LC for %s: %s", erm.Oid, erm.Error))
+			e.Logger.Error(fmt.Sprintf("received error from LC for %s: %s", erm.Oid, erm.Error))
 		},
 	}
 
-	l.extension = x
+	e.extension = x
 
 	// Start processing.
 	if err := x.Init(); err != nil {
@@ -254,7 +304,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		if err != nil {
 			e.Logger.Info(fmt.Sprintf("failed to parse command line for %s and tool %s: %v", o.GetOID(), request.Tool, err))
 			doRunResp = common.Response{
-				Error: fmt.Sprintf("failed to parse command line: %v", err),
+				Error:     fmt.Sprintf("failed to parse command line: %v", err),
+				Retriable: Bool(false),
 			}
 			return doRunResp
 		}
@@ -264,7 +315,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	if len(request.CommandLine) > commandArgumentsMaxSize {
 		e.Logger.Info(fmt.Sprintf("command line is too long for %s and tool %s, got %d, max size is %d", o.GetOID(), request.Tool, len(request.CommandLine), commandArgumentsMaxSize))
 		doRunResp = common.Response{
-			Error: fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
+			Error:     fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize),
+			Retriable: Bool(false),
 		}
 		return doRunResp
 	}
@@ -272,7 +324,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	if len(request.CommandTokens) > commandArgumentsMaxCount {
 		e.Logger.Info(fmt.Sprintf("command arguments are too long for %s and tool %s, got %d, max count is %d", o.GetOID(), request.Tool, len(request.CommandTokens), commandArgumentsMaxCount))
 		doRunResp = common.Response{
-			Error: fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
+			Error:     fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount),
+			Retriable: Bool(false),
 		}
 		return doRunResp
 	}
@@ -290,7 +343,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		if !ok {
 			e.Logger.Info(fmt.Sprintf("unknown tool for %s: %s", o.GetOID(), request.Tool))
 			doRunResp = common.Response{
-				Error: fmt.Sprintf("unknown tool: %s", request.Tool),
+				Error:     fmt.Sprintf("unknown tool: %s", request.Tool),
+				Retriable: Bool(false),
 			}
 			return doRunResp
 		}
@@ -305,8 +359,8 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 	// Log to the adapter.
 	anonReq := *request
 	anonReq.Credentials = "REDACTED"
-	// NOTE(Tomaz): request.CommandLine and request.CommandTokens could potentially also contain sensitive information
-	// so perhaps we should try to sanitize / mask it as well
+	anonReq.CommandLine = core.MaskSecrets(request.CommandLine, []string{request.Credentials})
+	anonReq.CommandTokens = core.MaskSecretsInSlice(request.CommandTokens, []string{request.Credentials})
 
 	hook := limacharlie.Dict{
 		"action":  "run",
@@ -331,14 +385,15 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
-	if err := e.extension.SendToWebhookAdapter(o, hook); err != nil {
+	if err := sendToWebhookAdapterFunc(e.extension, o, hook); err != nil {
 		e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter: %v", err))
 	}
 
 	if err != nil {
 		doRunResp = common.Response{
-			Data:  &resp,
-			Error: err.Error(),
+			Data:      &resp,
+			Error:     err.Error(),
+			Retriable: Bool(isErrorRetriable(err)),
 		}
 		return doRunResp
 	}
@@ -379,24 +434,28 @@ func (e *CLIExtension) TryParsingOutput(output []byte) CLIReturnData {
 }
 
 func (e *CLIExtension) stopThisInstance(o *limacharlie.Organization, request *CLIRunRequest, error string) {
-	if error == "" {
-		e.Logger.Info(fmt.Sprintf("stopping instance after successful processing for oid %s and tool %s", o.GetOID(), request.Tool))
-	} else {
-		e.Logger.Info(fmt.Sprintf("stopping instance after failed processing for oid %s and tool %s: %s", o.GetOID(), request.Tool, error))
+	stopThisInstanceFunc(e.Logger, o, request, error)
+}
+
+// Return true if a specific error is considered retriable.
+func isErrorRetriable(err error) bool {
+	if err == nil {
+		return false
+	}
+	// For the time being, we retry all other errors exception context timeout, canceled, invalid credentials
+	// and common command errors which are not retriable.
+	isRetriable := true
+
+	var cmdErr *CommandError
+	if errors.Is(err, context.DeadlineExceeded) {
+		isRetriable = false
+	} else if errors.Is(err, context.Canceled) {
+		isRetriable = false
+	} else if errors.Is(err, ErrInvalidCredentials) {
+		isRetriable = false
+	} else if errors.As(err, &cmdErr) {
+		isRetriable = false
 	}
 
-	p, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to find process: %v", err))
-		return
-	}
-
-	// Send SIGTERM to the current process.
-	if err := p.Signal(syscall.SIGTERM); err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to send SIGTERM: %v", err))
-		return
-	}
-
-	// TODO: Should we add a safe guard and send SIGKILL if process is still alive after
-	// X seconds?
+	return isRetriable
 }

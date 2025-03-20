@@ -12,9 +12,11 @@ import (
 
 const updateRuleHive = "dr-managed"
 
-type GetLookupCallback = func(ctx context.Context) (LookupData, error)
-type LookupName = string
-type LookupData = map[LookupName]interface{}
+type (
+	GetLookupCallback = func(ctx context.Context) (LookupData, error)
+	LookupName        = string
+	LookupData        = map[LookupName]interface{}
+)
 
 type LookupExtension struct {
 	Name      string

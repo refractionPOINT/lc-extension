@@ -1,0 +1,23 @@
+linters:
+  enable:
+    - govet          # Catches logical errors (e.g., nil dereferences)
+    - staticcheck    # Finds unused variables, deprecated functions, etc.
+    - errcheck       # Ensures errors are properly handled
+    - revive         # More configurable and faster than golint
+    - gofumpt        # Enforces stricter formatting (better than gofmt)
+    - gocritic       # Finds performance and style issues
+    - misspell       # Detects spelling mistakes in code
+    - gosec          # Static security analysis (e.g., detecting `hardcoded secrets`)
+    - ineffassign    # Detects ineffectual assignments
+    - goconst        # Detects repeated strings that could be replaced by a constant
+    - prealloc       # Detects slice declarations that could potentially be preallocated
+    - gochecknoinits # Detects package-level variable initializations
+
+linters-settings:
+  revive:
+    rules:
+      - name: unused-parameter
+        disabled: true
+  gocritic:
+    disabled-checks:
+      - ifElseChain # Disables the warning globally

@@ -14,13 +14,15 @@ import (
 	"github.com/refractionPOINT/lc-extension/core"
 )
 
-type GetRulesCallback = func(ctx context.Context) (RuleData, error)
-type RuleName = string
-type RuleNamespace = string
-type RuleInfo struct {
-	Tags []string
-	Data limacharlie.Dict
-}
+type (
+	GetRulesCallback = func(ctx context.Context) (RuleData, error)
+	RuleName         = string
+	RuleNamespace    = string
+	RuleInfo         struct {
+		Tags []string
+		Data limacharlie.Dict
+	}
+)
 type RuleData = map[RuleNamespace]map[RuleName]RuleInfo
 
 type RuleExtension struct {

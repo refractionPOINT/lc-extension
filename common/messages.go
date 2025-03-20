@@ -18,8 +18,10 @@ type Message struct {
 }
 
 // Recurring messages used by LimaCharlie to see if an Extension is still available.
-type HeartBeatMessage struct{}
-type HeartBeatResponse struct{}
+type (
+	HeartBeatMessage  struct{}
+	HeartBeatResponse struct{}
+)
 
 // Message indicating an error LimaCharlie encountered.
 type ErrorReportMessage struct {
@@ -43,13 +45,15 @@ type View struct {
 }
 
 // A request to get the schema required by the Extension for its configuration and requests.
-type SchemaRequestMessage struct{}
-type SchemaRequestResponse struct {
-	Views          []View         `json:"views,omitempty" msgpack:"views,omitempty"`
-	Config         SchemaObject   `json:"config_schema" msgpack:"config_schema"`
-	Request        RequestSchemas `json:"request_schema" msgpack:"request_schema"`
-	RequiredEvents []EventName    `json:"required_events" msgpack:"required_events"`
-}
+type (
+	SchemaRequestMessage  struct{}
+	SchemaRequestResponse struct {
+		Views          []View         `json:"views,omitempty" msgpack:"views,omitempty"`
+		Config         SchemaObject   `json:"config_schema" msgpack:"config_schema"`
+		Request        RequestSchemas `json:"request_schema" msgpack:"request_schema"`
+		RequiredEvents []EventName    `json:"required_events" msgpack:"required_events"`
+	}
+)
 
 // A set of org credentials the Extension can use.
 type OrgAccessData struct {
@@ -93,11 +97,22 @@ type EventMessage struct {
 // Format of responses from an Extension webhook.
 type Response struct {
 	Error             string                `json:"error" msgpack:"error"`
+	Retriable         *bool                 `json:"retriable,omitempty" msgpack:"retriable,omitempty"` // True if this error is retriable. This only applies to Responses where Error field is set. If not provided, every Response with Error set is considered to be retriable.
 	Version           uint64                `json:"version" msgpack:"version"`
 	Data              interface{}           `json:"data,omitempty" msgpack:"data,omitempty"`
 	SensorStateChange *SensorUpdate         `json:"ssc,omitempty" msgpack:"ssc,omitempty"` // For internal use only.
 	Continuations     []ContinuationRequest `json:"continuations,omitempty" msgpack:"continuations,omitempty"`
 	Metrics           *MetricReport         `json:"metrics,omitempty" msgpack:"metrics,omitempty"`
+}
+
+// Retriable returns true if Reiable field is either not provided (nil) or explicitly set to true.
+// This is needed for backward compatibility reasons - for now, we want to retry every request
+// which either has Retriable set to true or does not have this field set at all.
+func (r *Response) IsRetriable() bool {
+	if r.Retriable == nil {
+		return true
+	}
+	return *r.Retriable
 }
 
 type EventName = string

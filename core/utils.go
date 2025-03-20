@@ -2,10 +2,11 @@ package core
 
 import (
 	"fmt"
-	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 )
 
 var (
@@ -111,4 +112,24 @@ func getSecretFromHive(recordName string, org *limacharlie.Organization) (string
 	}
 
 	return data.Data["secret"].(string), nil
+}
+
+// MaskSecrets replaces every occurrence of each secret in the text with a redacted message.
+// text: the text to mask secrets in
+// secrets: the list of secrets to mask
+func MaskSecrets(text string, secrets []string) string {
+	maskedText := text
+	for _, secret := range secrets {
+		maskedText = strings.ReplaceAll(maskedText, secret, "**** REDACTED ***")
+	}
+	return maskedText
+}
+
+// maskSecretsInSlice recursively masks secrets in a slice of strings.
+func MaskSecretsInSlice(texts []string, secrets []string) []string {
+	maskedTexts := make([]string, len(texts))
+	for i, text := range texts {
+		maskedTexts[i] = MaskSecrets(text, secrets)
+	}
+	return maskedTexts
 }
