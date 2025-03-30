@@ -84,11 +84,27 @@ class MessageSchemaRequest(object):
     def __init__(self, data):
         pass
 
+
+class ContinuationRequest(object):
+    def __init__(self, in_delay_sec: int, action: str, state: dict):
+        self.in_delay_sec = in_delay_sec
+        self.action = action
+        self.state = state
+
+    def serialize(self) -> dict:
+        return {
+            'in_delay_sec': self.in_delay_sec,
+            'action': self.action,
+            'state': self.state,
+        }
+
+
 class Response(object):
-    def __init__(self, error = None, data = None, metrics = None):
+    def __init__(self, error = None, data = None, metrics = None, continuations = None):
         self.error = error
         self.data = data
         self.metrics = metrics
+        self.continuations = continuations if continuations else []
     
     def toJSON(self):
         ret = {
@@ -102,4 +118,6 @@ class Response(object):
             ret['data'] = self.data
         if self.metrics:
             ret['metrics'] = self.metrics.serialize()
+        if self.continuations:
+            ret['continuations'] = [c.serialize() for c in self.continuations]
         return ret
