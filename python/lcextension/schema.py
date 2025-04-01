@@ -1,17 +1,23 @@
+from typing import Dict, List, Optional, Any, Union
+
+SchemaKey = str
+Label = str
+SchemaDataType = str
+
 class SchemaObject(object):
-    def __init__(self, **kwargs):
-        self.Fields = {} # {} of Field name to SchemaElement
-        self.Key = None
-        self.ListElementName = None
-        self.ElementDescription = None
-        self.Requirements = [] # [] of [] of Field names
-        self.SupportedActions = None # [] of Action names
+    def __init__(self, **kwargs: Any):
+        self.Fields: Dict[SchemaKey, 'SchemaElement'] = {} # {} of Field name to SchemaElement
+        self.Key: Optional['SchemaRecordKey'] = None
+        self.ListElementName: Optional[str] = None
+        self.ElementDescription: Optional[str] = None
+        self.Requirements: List[List[SchemaKey]] = [] # [] of [] of Field names
+        self.SupportedActions: Optional[List[str]] = None # [] of Action names
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         return {
             'fields' : {n: f.serialize() for n, f in self.Fields.items()},
             'list_element_name': self.ListElementName,
@@ -22,18 +28,18 @@ class SchemaObject(object):
         }
 
 class SchemaRecordKey(object):
-    def __init__(self, **kwargs):
-        self.Name = ""
-        self.Label = ""
-        self.Description = ""
-        self.DataType = None # SchemaDataTypes
-        self.DisplayIndex = None
+    def __init__(self, **kwargs: Any):
+        self.Name: str = ""
+        self.Label: str = ""
+        self.Description: str = ""
+        self.DataType: Optional[SchemaDataType] = None # SchemaDataTypes
+        self.DisplayIndex: Optional[int] = None
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         return {
             'name': self.Name,
             'label': self.Label,
@@ -43,23 +49,23 @@ class SchemaRecordKey(object):
         }
 
 class SchemaElement(object):
-    def __init__(self, **kwargs):
-        self.Label = ""
-        self.Description = ""
-        self.DataType = None # SchemaDataTypes
-        self.IsList = False
-        self.DisplayIndex = None
-        self.DefaultValue = None
-        self.ObjectSchema = None # SchemaObject
-        self.EnumValues = None # [] of string
-        self.PlaceHolder = None
-        self.Filter = {}
+    def __init__(self, **kwargs: Any):
+        self.Label: str = ""
+        self.Description: str = ""
+        self.DataType: Optional[SchemaDataType] = None # SchemaDataTypes
+        self.IsList: bool = False
+        self.DisplayIndex: Optional[int] = None
+        self.DefaultValue: Optional[Any] = None
+        self.ObjectSchema: Optional[SchemaObject] = None # SchemaObject
+        self.EnumValues: Optional[List[Union[str, Dict[str, Any]]]] = None # [] of string
+        self.PlaceHolder: Optional[str] = None
+        self.Filter: Dict[str, Any] = {}
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         return {
             'label' : self.Label,
             'description' : self.Description,
@@ -75,27 +81,27 @@ class SchemaElement(object):
 
 class RequestSchemas(object):
     def __init__(self):
-        self.Actions = {} # {} of Action name to RequestSchema
+        self.Actions: Dict[str, 'RequestSchema'] = {} # {} of Action name to RequestSchema
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         return {n : a.serialize() for n, a in self.Actions.items()}
 
 class RequestSchema(object):
-    def __init__(self, **kwargs):
-        self.IsDefaultRequest = False
-        self.IsUserFacing = True
-        self.ShortDescription = ""
-        self.LongDescription = ""
-        self.IsImpersonated = False
-        self.ParameterDefinitions = SchemaObject()
-        self.ResponseDefinition = None # SchemaObject
-        self.Label = ""
+    def __init__(self, **kwargs: Any):
+        self.IsDefaultRequest: bool = False
+        self.IsUserFacing: bool = True
+        self.ShortDescription: str = ""
+        self.LongDescription: str = ""
+        self.IsImpersonated: bool = False
+        self.ParameterDefinitions: SchemaObject = SchemaObject()
+        self.ResponseDefinition: Optional[SchemaObject] = None # SchemaObject
+        self.Label: str = ""
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         return {
             'is_default' : self.IsDefaultRequest,
             'is_user_facing' : self.IsUserFacing,
@@ -108,16 +114,16 @@ class RequestSchema(object):
         }
 
 class SchemaView(object):
-    def __init__(self, **kwargs):
-        self.Name = ""
-        self.LayoutType = None
-        self.DefaultRequests = None # [] of Request names
+    def __init__(self, **kwargs: Any):
+        self.Name: str = ""
+        self.LayoutType: Optional[str] = None
+        self.DefaultRequests: Optional[List[str]] = None # [] of Request names
         for k, v in kwargs.items():
             if not hasattr(self, k):
                 raise Exception(f"unknown attribute {k}")
             setattr(self, k, v)
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         return {
             'name' :self.Name,
             'layout_type' : self.LayoutType,
@@ -125,27 +131,27 @@ class SchemaView(object):
         }
 
 class SchemaDataTypes(object):
-    String = "string"
-    Integer = "integer"
-    Boolean = "bool"
-    Enum = "enum"
-    ComplexEnum = "complex_enum"
-    Secret = "secret"
-    SensorID = "sid"
-    OrgID = "oid"
-    Platform = "platform"
-    Architecture = "architecture"
-    SensorSelector = "sensor_selector"
-    EventName = 'event_name'
-    Tag = "tag"
-    Duration = "duration" # milliseconds
-    Time = "time" # milliseconds since epoch
-    URL = "url"
-    Domain = "domain"
-    JSON = "json"
-    YAML = "yaml"
-    Code = "code"
-    YaraRule = "yara_rule"
-    YaraRuleName = "yara_rule_name"
-    Object = "object"
-    Record = "record"
+    String: str = "string"
+    Integer: str = "integer"
+    Boolean: str = "bool"
+    Enum: str = "enum"
+    ComplexEnum: str = "complex_enum"
+    Secret: str = "secret"
+    SensorID: str = "sid"
+    OrgID: str = "oid"
+    Platform: str = "platform"
+    Architecture: str = "architecture"
+    SensorSelector: str = "sensor_selector"
+    EventName: str = 'event_name'
+    Tag: str = "tag"
+    Duration: str = "duration" # milliseconds
+    Time: str = "time" # milliseconds since epoch
+    URL: str = "url"
+    Domain: str = "domain"
+    JSON: str = "json"
+    YAML: str = "yaml"
+    Code: str = "code"
+    YaraRule: str = "yara_rule"
+    YaraRuleName: str = "yara_rule_name"
+    Object: str = "object"
+    Record: str = "record"
