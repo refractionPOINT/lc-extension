@@ -56,7 +56,7 @@ class Extension(object):
                     self.logCritical(f"exception: {str(e)}")
                 status = 200
                 if resp.error:
-                    status = 500
+                    status = 500 if resp.retriable else 503
                 resp = json.dumps(resp.toJSON())
                 if self._isLogResponse:
                     self.log(f"response: {resp}")
