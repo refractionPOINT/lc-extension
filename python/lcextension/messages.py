@@ -105,11 +105,13 @@ class Response(object):
                  error: Optional[str] = None, 
                  data: Optional[Dict[str, Any]] = None, 
                  metrics: Optional[Any] = None, 
-                 continuations: Optional[List[ContinuationRequest]] = None):
+                 continuations: Optional[List[ContinuationRequest]] = None,
+                 is_retriable: Optional[bool] = None):
         self.error: Optional[str] = error
         self.data: Optional[Dict[str, Any]] = data
         self.metrics: Optional[Any] = metrics
         self.continuations: List[ContinuationRequest] = continuations if continuations else []
+        self.is_retriable: Optional[bool] = is_retriable
     
     def toJSON(self) -> Dict[str, Any]:
         ret: Dict[str, Any] = {
@@ -125,4 +127,5 @@ class Response(object):
             ret['metrics'] = self.metrics.serialize()
         if self.continuations:
             ret['continuations'] = [c.serialize() for c in self.continuations]
+        ret['retriable'] = self.is_retriable or self.is_retriable is None
         return ret
