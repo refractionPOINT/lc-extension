@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -454,6 +455,12 @@ func isErrorRetriable(err error) bool {
 	} else if errors.Is(err, ErrInvalidCredentials) {
 		isRetriable = false
 	} else if errors.As(err, &cmdErr) {
+		isRetriable = false
+	} else if strings.Contains(err.Error(), "401") {
+		isRetriable = false
+	} else if strings.Contains(err.Error(), "auth") {
+		isRetriable = false
+	} else if strings.Contains(err.Error(), "creds") || strings.Contains(err.Error(), "credentials") {
 		isRetriable = false
 	}
 
