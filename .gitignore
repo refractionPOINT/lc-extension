@@ -14,3 +14,13 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+# Local action tracking
+actions.md
+
+# Build artifacts
+lc-extension
+/lc-extension
+bin/
+dist/
+build/
