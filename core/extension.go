@@ -229,11 +229,11 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// validation error, etc. and return appropriate status code (e.g. 400 for validation error, etc.)
 		// For the time being we return 503 for retryable errors and 500 for non-retryable errors.
 		if response.IsRetriable() {
-			e.respondAndLog(w, http.StatusServiceUnavailable, &response) //nolint:errcheck
+			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
 			return
 		}
 
-		e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
+		e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 		return
 	}
 	response.Version = PROTOCOL_VERSION
