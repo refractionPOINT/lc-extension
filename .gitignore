@@ -24,3 +24,6 @@ lc-extension
 bin/
 dist/
 build/
+
+# Docker build files (temporary)
+Dockerfile.multiplexer
