@@ -270,9 +270,13 @@ func (e *Multiplexer) OnGenericEvent(ctx context.Context, eventName common.Event
 	if eventName == common.EventTypes.Subscribe {
 		_, _, err := e.createService(params.Org.GetOID())
 		if err != nil {
-			return common.Response{
-				Error: fmt.Sprintf("failed to create service: %v", err),
+			// Check if the error is because the service already exists
+			if !strings.Contains(err.Error(), "AlreadyExists") {
+				return common.Response{
+					Error: fmt.Sprintf("failed to create service: %v", err),
+				}
 			}
+			// If it's an AlreadyExists error, treat it as success
 		}
 	}
 	// Also always forward the event to the service.
