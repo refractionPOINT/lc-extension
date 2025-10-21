@@ -148,6 +148,7 @@ class SchemaDataTypes(object):
     Time: str = "time" # milliseconds since epoch
     URL: str = "url"
     Domain: str = "domain"
+    Text: str = "text"
     JSON: str = "json"
     YAML: str = "yaml"
     Code: str = "code"

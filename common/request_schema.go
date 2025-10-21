@@ -55,6 +55,7 @@ var SchemaDataTypes = struct {
 	URL    string
 	Domain string
 
+	Text         string
 	JSON         string
 	YAML         string
 	Code         string
@@ -86,6 +87,7 @@ var SchemaDataTypes = struct {
 	URL:    "url",
 	Domain: "domain",
 
+	Text: "text",
 	JSON: "json",
 	YAML: "yaml",
 	Code: "code",
