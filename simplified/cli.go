@@ -27,10 +27,10 @@ type CLIDescriptor struct {
 }
 
 type CLIReturnData struct {
-	StatusCode   int                `json:"status_code"`
-	OutputString string             `json:"output_string"`
-	OutputDict   limacharlie.Dict   `json:"output_dict"`
-	OutputList   []limacharlie.Dict `json:"output_list"`
+	StatusCode   int                `json:"status_code" msgpack:"status_code"`
+	OutputString string             `json:"output_string" msgpack:"output_string"`
+	OutputDict   limacharlie.Dict   `json:"output_dict" msgpack:"output_dict"`
+	OutputList   []limacharlie.Dict `json:"output_list" msgpack:"output_list"`
 }
 
 type CLIName = string
@@ -46,10 +46,10 @@ type CLIExtension struct {
 }
 
 type CLIRunRequest struct {
-	CommandLine   string   `json:"command_line"`
-	CommandTokens []string `json:"command_tokens"`
-	Credentials   string   `json:"credentials"`
-	Tool          string   `json:"tool"`
+	CommandLine   string   `json:"command_line" msgpack:"command_line"`
+	CommandTokens []string `json:"command_tokens" msgpack:"command_tokens"`
+	Credentials   string   `json:"credentials" msgpack:"credentials"`
+	Tool          string   `json:"tool" msgpack:"tool"`
 }
 
 var errUnknownTool = errors.New("unknown tool")
