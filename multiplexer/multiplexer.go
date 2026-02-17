@@ -20,6 +20,7 @@ import (
 	"github.com/refractionPOINT/lc-extension/common"
 	"github.com/refractionPOINT/lc-extension/core"
 
+	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/datastore"
 	iampb "cloud.google.com/go/iam/apiv1/iampb"
 	run "cloud.google.com/go/run/apiv2"
@@ -118,7 +119,20 @@ func init() {
 		panic("PROVISION_REGION is not set")
 	}
 
-	dsClient, err := datastore.NewClient(context.Background(), provProjectID)
+	// The Datastore project is decoupled from the provisioning project so that
+	// when PROVISION_PROJECT_ID is changed to overflow into a new GCP project,
+	// existing service records remain accessible. By default, auto-detect the
+	// project this service is running in (via the GCP metadata server).
+	dsProjectID := os.Getenv("DATASTORE_PROJECT_ID")
+	if dsProjectID == "" {
+		var mErr error
+		dsProjectID, mErr = metadata.ProjectIDWithContext(context.Background())
+		if mErr != nil {
+			panic(fmt.Sprintf("DATASTORE_PROJECT_ID not set and failed to auto-detect project ID: %v", mErr))
+		}
+	}
+
+	dsClient, err := datastore.NewClient(context.Background(), dsProjectID)
 	if err != nil {
 		panic(err)
 	}

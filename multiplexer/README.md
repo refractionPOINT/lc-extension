@@ -38,6 +38,8 @@ generated and set as `LC_SHARED_SECRET` in the new service.
 
 `PROVISION_REGION`: `us-central1`
 
+`DATASTORE_PROJECT_ID` (optional): `my-project` - The GCP project to use for Datastore. If not set, auto-detects the project the service is running in. This is decoupled from `PROVISION_PROJECT_ID` so that when overflowing Cloud Run services into a new GCP project, the Datastore records (which map OIDs to their Cloud Run service locations) remain in the original project.
+
 `LC_REFERENCE_SHARED_SECRET`: `1234`
 
 `LC_REFERENCE_SERVICE_URL`: `https://my-reference-service.com`
