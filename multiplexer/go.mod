@@ -3,6 +3,7 @@ module github.com/refractionPOINT/lc-extension/multiplexer
 go 1.24.0
 
 require (
+	cloud.google.com/go/compute/metadata v0.8.4
 	cloud.google.com/go/datastore v1.20.0
 	cloud.google.com/go/iam v1.5.2
 	cloud.google.com/go/run v1.12.0
@@ -17,7 +18,6 @@ require (
 	cloud.google.com/go v0.122.0 // indirect
 	cloud.google.com/go/auth v0.16.5 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute/metadata v0.8.4 // indirect
 	cloud.google.com/go/longrunning v0.6.7 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
 	cloud.google.com/go/storage v1.56.2 // indirect
