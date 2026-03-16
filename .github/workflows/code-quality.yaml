@@ -41,9 +41,9 @@ jobs:
           test -z "$(go fmt ./...)" || (echo "Code needs formatting, run go fmt ./..." && exit 1)
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@e60da84bfae8c7920a47be973d75e15710aa8bd7  # v6.3.0
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20  # v9.2.0
         with:
-          version: v1.64.8
+          version: v2.3.0
           # There are existing issues in the code which haven't been fixed yet so for now, only report new issues
           only-new-issues: true
 
