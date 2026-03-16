@@ -83,7 +83,7 @@ jobs:
           go tool covdata percent -i=./.coverage/unit
 
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report-${{ matrix.go_version }}
           path: .coverage/
