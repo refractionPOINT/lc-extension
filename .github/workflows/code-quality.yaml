@@ -30,7 +30,7 @@ jobs:
       - name: Use Go ${{ matrix.go_version }}
         uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.25"
 
       - name: Install Go Modules
         run: |
@@ -56,9 +56,8 @@ jobs:
       fail-fast: false
       matrix:
         go_version:
-          - "1.21"
-          - "1.22"
-          - "1.23"
+          - "1.24"
+          - "1.25"
         os:
           - ubuntu-latest
 
