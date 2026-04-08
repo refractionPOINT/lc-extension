@@ -7,6 +7,8 @@ require (
 	github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed
 )
 
+replace github.com/refractionPOINT/go-limacharlie/limacharlie => ../go-limacharlie/limacharlie
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go v0.122.0 // indirect
@@ -32,6 +34,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
