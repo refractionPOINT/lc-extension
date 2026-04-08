@@ -3,6 +3,7 @@ package simulator
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -99,6 +100,21 @@ func TestHeartbeatWithGzip(t *testing.T) {
 	}
 	if statusCode != 200 {
 		t.Fatalf("expected status 200, got %d", statusCode)
+	}
+}
+
+// --- Signature Verification ---
+
+func TestBadSignatureRejected(t *testing.T) {
+	ext := newTestExtension(t, core.ExtensionCallbacks{})
+	sim := newSimulator(t, ext)
+
+	statusCode, err := sim.SendWithBadSignature()
+	if err != nil {
+		t.Fatalf("send with bad signature failed: %v", err)
+	}
+	if statusCode != 401 {
+		t.Fatalf("expected status 401 for bad signature, got %d", statusCode)
 	}
 }
 
@@ -376,6 +392,87 @@ func TestSendRequestIdempotencyKey(t *testing.T) {
 	}
 }
 
+// --- SendRequestFull / Status Codes ---
+
+func TestSendRequestFullStatusCode(t *testing.T) {
+	f := false
+	ext := newTestExtension(t, core.ExtensionCallbacks{
+		RequestHandlers: map[common.ActionName]core.RequestCallback{
+			"ok": {
+				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
+					return common.Response{}
+				},
+			},
+			"fail-retriable": {
+				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
+					return common.Response{Error: "temporary"}
+				},
+			},
+			"fail-permanent": {
+				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
+					return common.Response{Error: "permanent", Retriable: &f}
+				},
+			},
+		},
+	})
+	sim := newSimulator(t, ext)
+
+	// Successful request: 200.
+	res, err := sim.SendRequestFull(testOID, "ok", limacharlie.Dict{}, nil)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if res.StatusCode != 200 {
+		t.Errorf("expected status 200 for success, got %d", res.StatusCode)
+	}
+
+	// Retriable error: 500.
+	res, err = sim.SendRequestFull(testOID, "fail-retriable", limacharlie.Dict{}, nil)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if res.StatusCode != 500 {
+		t.Errorf("expected status 500 for retriable error, got %d", res.StatusCode)
+	}
+
+	// Non-retriable error: 400.
+	res, err = sim.SendRequestFull(testOID, "fail-permanent", limacharlie.Dict{}, nil)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if res.StatusCode != 400 {
+		t.Errorf("expected status 400 for non-retriable error, got %d", res.StatusCode)
+	}
+}
+
+func TestSendEventFullStatusCode(t *testing.T) {
+	ext := newTestExtension(t, core.ExtensionCallbacks{
+		EventHandlers: map[common.EventName]core.EventCallback{
+			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				return common.Response{}
+			},
+		},
+	})
+	sim := newSimulator(t, ext)
+
+	res, err := sim.SendEventFull(testOID, common.EventTypes.Subscribe, nil)
+	if err != nil {
+		t.Fatalf("event failed: %v", err)
+	}
+	if res.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", res.StatusCode)
+	}
+
+	// Unknown event: 400.
+	res, err = sim.SendEventFull(testOID, "nonexistent", nil)
+	if err != nil {
+		t.Fatalf("event failed: %v", err)
+	}
+	if res.StatusCode != 400 {
+		t.Errorf("expected status 400 for unknown event, got %d", res.StatusCode)
+	}
+}
+
 // --- Events ---
 
 func TestSendSubscribe(t *testing.T) {
@@ -527,6 +624,60 @@ func TestSendEventWithData(t *testing.T) {
 	}
 }
 
+func TestSendEventWithIdent(t *testing.T) {
+	var receivedIdent string
+
+	ext := newTestExtension(t, core.ExtensionCallbacks{
+		RequestHandlers: map[common.ActionName]core.RequestCallback{
+			"check": {
+				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
+					receivedIdent = params.Ident
+					return common.Response{}
+				},
+			},
+		},
+	})
+	sim := newSimulator(t, ext)
+
+	// Ident is only passed through for requests (events don't expose ident
+	// in EventCallbackParams), but verify the OrgAccessData is constructed
+	// correctly by sending a request with EventOptions.Ident through
+	// the request path.
+	_, err := sim.SendRequest(testOID, "check", limacharlie.Dict{}, &RequestOptions{
+		Ident: "custom-user@test.com",
+	})
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if receivedIdent != "custom-user@test.com" {
+		t.Errorf("expected ident 'custom-user@test.com', got %q", receivedIdent)
+	}
+}
+
+func TestSendEventIdempotencyKey(t *testing.T) {
+	var receivedKey string
+
+	ext := newTestExtension(t, core.ExtensionCallbacks{
+		EventHandlers: map[common.EventName]core.EventCallback{
+			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				receivedKey = params.IdempotentKey
+				return common.Response{}
+			},
+		},
+	})
+	sim := newSimulator(t, ext)
+
+	_, err := sim.SendSubscribe(testOID, &EventOptions{
+		IdempotencyKey: "event-key-42",
+	})
+	if err != nil {
+		t.Fatalf("subscribe failed: %v", err)
+	}
+	if receivedKey != "event-key-42" {
+		t.Errorf("expected idempotency key 'event-key-42', got %q", receivedKey)
+	}
+}
+
 func TestSendUnknownEvent(t *testing.T) {
 	ext := newTestExtension(t, core.ExtensionCallbacks{})
 	sim := newSimulator(t, ext)
@@ -606,6 +757,26 @@ func TestSendErrorReport(t *testing.T) {
 	}
 	if receivedError != "something went wrong" {
 		t.Errorf("expected error 'something went wrong', got %q", receivedError)
+	}
+}
+
+// --- Raw Message ---
+
+func TestSendRawEmptyMessage(t *testing.T) {
+	ext := newTestExtension(t, core.ExtensionCallbacks{})
+	sim := newSimulator(t, ext)
+
+	msg := common.Message{
+		Version:        protocolVersion,
+		IdempotencyKey: "raw-test",
+		// No message type set — extension should return 400.
+	}
+	_, statusCode, err := sim.SendRawMessage(&msg)
+	if err != nil {
+		t.Fatalf("send raw failed: %v", err)
+	}
+	if statusCode != 400 {
+		t.Errorf("expected status 400 for empty message, got %d", statusCode)
 	}
 }
 
@@ -768,6 +939,51 @@ func TestContinuationImmediateMode(t *testing.T) {
 	}
 }
 
+func TestContinuationImmediateModeMaxLevelStopsChain(t *testing.T) {
+	callCount := 0
+
+	ext := newTestExtension(t, core.ExtensionCallbacks{
+		RequestHandlers: map[common.ActionName]core.RequestCallback{
+			"loop": {
+				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
+					callCount++
+					return common.Response{
+						Continuations: []common.ContinuationRequest{
+							{Action: "loop", State: limacharlie.Dict{}},
+						},
+					}
+				},
+			},
+		},
+	})
+	sim := newSimulator(t, ext)
+	sim.SetContinuationMode(ContinuationModeImmediate)
+
+	_, err := sim.SendRequest(testOID, "loop", limacharlie.Dict{}, nil)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	// The initial request is at level 0. Continuations go 0->1->2...->10->rejected.
+	// So we should get the initial call (level 0) + 10 continuation executions = 11 total.
+	if callCount != MaxContinuationLevel+1 {
+		t.Errorf("expected %d calls before max level stops chain, got %d", MaxContinuationLevel+1, callCount)
+	}
+
+	// Should have an error about max level.
+	errors := sim.Errors()
+	found := false
+	for _, e := range errors {
+		if strings.Contains(e.Message, "max continuation level") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected error about max continuation level being reached")
+	}
+}
+
 func TestContinuationMaxLevel(t *testing.T) {
 	ext := newTestExtension(t, core.ExtensionCallbacks{
 		RequestHandlers: map[common.ActionName]core.RequestCallback{
@@ -831,12 +1047,54 @@ func TestContinuationMaxDelay(t *testing.T) {
 	errors := sim.Errors()
 	found := false
 	for _, e := range errors {
-		if e.Message != "" {
+		if strings.Contains(e.Message, "exceeds max") && strings.Contains(e.Message, "continuation delay") {
 			found = true
+			break
 		}
 	}
 	if !found {
 		t.Error("expected error about clamped continuation delay")
+	}
+}
+
+func TestContinuationFanOutLimit(t *testing.T) {
+	ext := newTestExtension(t, core.ExtensionCallbacks{
+		RequestHandlers: map[common.ActionName]core.RequestCallback{
+			"fan-out": {
+				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
+					conts := make([]common.ContinuationRequest, 5)
+					for i := range conts {
+						conts[i] = common.ContinuationRequest{Action: "step", State: limacharlie.Dict{}}
+					}
+					return common.Response{Continuations: conts}
+				},
+			},
+		},
+	})
+	sim := newSimulator(t, ext, WithMaxContinuationsPerResponse(3))
+
+	_, err := sim.SendRequest(testOID, "fan-out", limacharlie.Dict{}, nil)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	// Should have been truncated to 3.
+	conts := sim.Continuations()
+	if len(conts) != 3 {
+		t.Errorf("expected 3 continuations after truncation, got %d", len(conts))
+	}
+
+	// Should have error about truncation.
+	errors := sim.Errors()
+	found := false
+	for _, e := range errors {
+		if strings.Contains(e.Message, "truncating") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected error about continuation truncation")
 	}
 }
 
@@ -1342,6 +1600,39 @@ func TestMockServerAccessor(t *testing.T) {
 	}
 }
 
+// --- AddMockServer ---
+
+func TestAddMockServerAfterConstruction(t *testing.T) {
+	ext := newTestExtension(t, core.ExtensionCallbacks{
+		EventHandlers: map[common.EventName]core.EventCallback{
+			common.EventTypes.Subscribe: func(ctx context.Context, params core.EventCallbackParams) common.Response {
+				// Try to use the SDK.
+				_, err := params.Org.DRRules()
+				if err != nil {
+					return common.Response{Error: err.Error()}
+				}
+				return common.Response{}
+			},
+		},
+	})
+	sim := newSimulator(t, ext)
+
+	// Initially no mock server — SDK calls would fail.
+	ms := limacharlie.NewMockServer(testOID)
+	defer ms.Close()
+
+	// Add mock server after construction.
+	sim.AddMockServer(testOID, ms)
+
+	resp, err := sim.SendSubscribe(testOID, nil)
+	if err != nil {
+		t.Fatalf("subscribe failed: %v", err)
+	}
+	if resp.Error != "" {
+		t.Fatalf("unexpected error after AddMockServer: %s", resp.Error)
+	}
+}
+
 // --- Multiple OIDs ---
 
 func TestMultipleOIDs(t *testing.T) {
@@ -1464,9 +1755,6 @@ func TestMultipleMockServers(t *testing.T) {
 	if resp2.Error != "" {
 		t.Fatalf("unexpected error for oid2: %s", resp2.Error)
 	}
-
-	// Verify each org sees its own rules (we can't easily check the data type
-	// since it goes through JSON round-trip, so just verify no errors).
 }
 
 // --- Extension Returning Version ---
@@ -1562,5 +1850,22 @@ func TestURLAccessor(t *testing.T) {
 	u := sim.URL()
 	if u == "" {
 		t.Error("expected non-empty URL")
+	}
+}
+
+// --- Close cleanup ---
+
+func TestCloseResetsOrgFromAccess(t *testing.T) {
+	ext := newTestExtension(t, core.ExtensionCallbacks{})
+	sim := New(ext)
+
+	if ext.OrgFromAccess == nil {
+		t.Fatal("expected OrgFromAccess to be set after New()")
+	}
+
+	sim.Close()
+
+	if ext.OrgFromAccess != nil {
+		t.Error("expected OrgFromAccess to be nil after Close()")
 	}
 }

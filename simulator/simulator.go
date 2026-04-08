@@ -35,6 +35,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
@@ -46,9 +47,13 @@ const protocolVersion = 20221218
 
 // Continuation limits matching the real backend.
 const (
-	MaxContinuationDelay = 300
-	MaxContinuationLevel = 10
+	MaxContinuationDelay          = 300
+	MaxContinuationLevel          = 10
+	DefaultMaxContinuationsPerReq = 100
 )
+
+// idempotencyCounter provides unique idempotency keys across concurrent callers.
+var idempotencyCounter uint64
 
 // ContinuationRecord captures a continuation that was requested by the
 // extension. In test mode continuations are not executed automatically unless
@@ -100,7 +105,7 @@ type Simulator struct {
 	ext    *core.Extension
 	server *httptest.Server
 
-	mu               sync.Mutex
+	mu               sync.RWMutex
 	continuationMode ContinuationMode
 	continuations    []ContinuationRecord
 	errors           []ErrorRecord
@@ -115,6 +120,11 @@ type Simulator struct {
 
 	// useGzip controls whether requests are gzip-compressed.
 	useGzip bool
+
+	// maxContinuationsPerResponse limits how many continuations a single
+	// response can generate, matching the backend's fan-out protection.
+	// 0 means use DefaultMaxContinuationsPerReq.
+	maxContinuationsPerResponse int
 }
 
 // Option configures a Simulator.
@@ -146,6 +156,15 @@ func WithConfig(oid string, config limacharlie.Dict) Option {
 	}
 }
 
+// WithMaxContinuationsPerResponse overrides the maximum number of continuation
+// requests that a single response can generate. The default is
+// [DefaultMaxContinuationsPerReq] (100). Set to -1 to disable the limit.
+func WithMaxContinuationsPerResponse(max int) Option {
+	return func(s *Simulator) {
+		s.maxContinuationsPerResponse = max
+	}
+}
+
 // New creates a Simulator for the given extension. The extension's Init()
 // must have been called before passing it here. The simulator starts an
 // httptest.Server that hosts the extension and must be closed with Close().
@@ -161,26 +180,30 @@ func New(ext *core.Extension, opts ...Option) *Simulator {
 
 	// Wire up OrgFromAccess so the extension creates Organizations backed
 	// by the mock server when one is registered for the given OID.
-	if len(s.mockServers) > 0 {
-		ext.OrgFromAccess = func(oad common.OrgAccessData) (*limacharlie.Organization, error) {
-			if ms, ok := s.mockServers[oad.OID]; ok {
-				return ms.NewOrganization()
-			}
-			// Fall back to default behavior.
-			return limacharlie.NewOrganizationFromClientOptions(limacharlie.ClientOptions{
-				OID: oad.OID,
-				JWT: oad.JWT,
-			}, nil)
+	// The closure captures s.mockServers (a map reference), so mock servers
+	// added later via AddMockServer are automatically picked up.
+	ext.OrgFromAccess = func(oad common.OrgAccessData) (*limacharlie.Organization, error) {
+		s.mu.RLock()
+		ms, ok := s.mockServers[oad.OID]
+		s.mu.RUnlock()
+		if ok {
+			return ms.NewOrganization()
 		}
+		// Fall back to default behavior.
+		return limacharlie.NewOrganizationFromClientOptions(limacharlie.ClientOptions{
+			OID: oad.OID,
+			JWT: oad.JWT,
+		}, nil)
 	}
 
 	s.server = httptest.NewServer(ext)
 	return s
 }
 
-// Close shuts down the test server.
+// Close shuts down the test server and cleans up the OrgFromAccess hook.
 func (s *Simulator) Close() {
 	s.server.Close()
+	s.ext.OrgFromAccess = nil
 }
 
 // URL returns the test server's URL.
@@ -202,10 +225,18 @@ func (s *Simulator) SetConfig(oid string, config limacharlie.Dict) {
 	s.configs[oid] = config
 }
 
-// Continuations returns all recorded continuation requests.
-func (s *Simulator) Continuations() []ContinuationRecord {
+// AddMockServer registers a [limacharlie.MockServer] for the given OID after
+// the simulator has been created. This can be called at any time.
+func (s *Simulator) AddMockServer(oid string, ms *limacharlie.MockServer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.mockServers[oid] = ms
+}
+
+// Continuations returns all recorded continuation requests.
+func (s *Simulator) Continuations() []ContinuationRecord {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make([]ContinuationRecord, len(s.continuations))
 	copy(out, s.continuations)
 	return out
@@ -220,8 +251,8 @@ func (s *Simulator) ResetContinuations() {
 
 // Errors returns all recorded errors.
 func (s *Simulator) Errors() []ErrorRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make([]ErrorRecord, len(s.errors))
 	copy(out, s.errors)
 	return out
@@ -236,8 +267,8 @@ func (s *Simulator) ResetErrors() {
 
 // Metrics returns all recorded metric reports.
 func (s *Simulator) Metrics() []MetricRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make([]MetricRecord, len(s.metrics))
 	copy(out, s.metrics)
 	return out
@@ -299,10 +330,27 @@ type RequestOptions struct {
 	InvestigationID string
 }
 
+// RequestResult holds the full result of a request, including the HTTP status code.
+type RequestResult struct {
+	Response   *common.Response
+	StatusCode int
+}
+
 // SendRequest sends an action request to the extension and returns the response.
 // The oid identifies the organization. The config stored via WithConfig or SetConfig
 // is used unless overridden in opts.
 func (s *Simulator) SendRequest(oid string, action string, data limacharlie.Dict, opts *RequestOptions) (*common.Response, error) {
+	res, err := s.SendRequestFull(oid, action, data, opts)
+	if err != nil {
+		return nil, err
+	}
+	return res.Response, nil
+}
+
+// SendRequestFull is like SendRequest but also returns the HTTP status code,
+// which is useful for verifying error classification (400 = non-retriable,
+// 500 = retriable).
+func (s *Simulator) SendRequestFull(oid string, action string, data limacharlie.Dict, opts *RequestOptions) (*RequestResult, error) {
 	if opts == nil {
 		opts = &RequestOptions{}
 	}
@@ -330,24 +378,40 @@ func (s *Simulator) SendRequest(oid string, action string, data limacharlie.Dict
 		},
 	}
 
-	resp, _, err := s.sendAndParse(&msg)
+	resp, statusCode, err := s.sendAndParse(&msg)
 	if err != nil {
 		return nil, err
 	}
 	s.processResponse(oid, idempotencyKey, 0, resp)
-	return resp, nil
+	return &RequestResult{Response: resp, StatusCode: statusCode}, nil
 }
 
 // EventOptions provides optional parameters for SendEvent.
 type EventOptions struct {
+	Ident          string
 	Config         limacharlie.Dict
 	Data           limacharlie.Dict
 	IdempotencyKey string
 }
 
+// EventResult holds the full result of an event, including the HTTP status code.
+type EventResult struct {
+	Response   *common.Response
+	StatusCode int
+}
+
 // SendEvent sends an event message (subscribe, unsubscribe, update, or custom)
 // to the extension and returns the response.
 func (s *Simulator) SendEvent(oid string, eventName string, opts *EventOptions) (*common.Response, error) {
+	res, err := s.SendEventFull(oid, eventName, opts)
+	if err != nil {
+		return nil, err
+	}
+	return res.Response, nil
+}
+
+// SendEventFull is like SendEvent but also returns the HTTP status code.
+func (s *Simulator) SendEventFull(oid string, eventName string, opts *EventOptions) (*EventResult, error) {
 	if opts == nil {
 		opts = &EventOptions{}
 	}
@@ -371,19 +435,19 @@ func (s *Simulator) SendEvent(oid string, eventName string, opts *EventOptions) 
 		Version:        protocolVersion,
 		IdempotencyKey: idempotencyKey,
 		Event: &common.EventMessage{
-			Org:       s.makeOrgAccess(oid, ""),
+			Org:       s.makeOrgAccess(oid, opts.Ident),
 			EventName: eventName,
 			Data:      data,
 			Config:    config,
 		},
 	}
 
-	resp, _, err := s.sendAndParse(&msg)
+	resp, statusCode, err := s.sendAndParse(&msg)
 	if err != nil {
 		return nil, err
 	}
 	s.processResponse(oid, idempotencyKey, 0, resp)
-	return resp, nil
+	return &EventResult{Response: resp, StatusCode: statusCode}, nil
 }
 
 // SendSubscribe is a convenience method that sends a "subscribe" event.
@@ -433,6 +497,43 @@ func (s *Simulator) SendErrorReport(oid string, errorMsg string) (int, error) {
 	return statusCode, err
 }
 
+// SendRawMessage sends an arbitrary [common.Message] to the extension,
+// properly signed and optionally gzipped. This is useful for testing edge
+// cases like empty messages or unusual field combinations.
+func (s *Simulator) SendRawMessage(msg *common.Message) ([]byte, int, error) {
+	return s.sendRaw(msg)
+}
+
+// SendWithBadSignature sends a message with an intentionally wrong HMAC
+// signature, for testing that the extension correctly rejects it.
+func (s *Simulator) SendWithBadSignature() (int, error) {
+	msg := common.Message{
+		Version:        protocolVersion,
+		IdempotencyKey: generateIdempotencyKey(),
+		HeartBeat:      &common.HeartBeatMessage{},
+	}
+	payload, err := json.Marshal(&msg)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.server.URL, bytes.NewReader(payload))
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("lc-ext-sig", "0000000000000000000000000000000000000000000000000000000000000000")
+
+	resp, err := s.server.Client().Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+	io.ReadAll(resp.Body)
+
+	return resp.StatusCode, nil
+}
+
 // ExecuteContinuation manually executes a recorded continuation. It sends the
 // continuation as a new request to the extension at the appropriate continuation
 // level. Returns the response from the extension.
@@ -468,8 +569,8 @@ func (s *Simulator) ExecuteContinuation(cont ContinuationRecord) (*common.Respon
 // --- Internal helpers ---
 
 func (s *Simulator) getConfig(oid string) limacharlie.Dict {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if c, ok := s.configs[oid]; ok {
 		return c
 	}
@@ -481,10 +582,11 @@ func (s *Simulator) makeOrgAccess(oid string, ident string) common.OrgAccessData
 		ident = "simulator@limacharlie.io"
 	}
 
-	// If there's a MockServer for this OID, use its mock JWT.
-	if ms, ok := s.mockServers[oid]; ok {
-		_ = ms // The mock server is used for SDK calls within the extension.
-		// We generate a mock JWT that the MockServer's JWT endpoint would accept.
+	s.mu.RLock()
+	_, hasMock := s.mockServers[oid]
+	s.mu.RUnlock()
+
+	if hasMock {
 		return common.OrgAccessData{
 			OID:   oid,
 			JWT:   "mock-jwt-token",
@@ -607,6 +709,16 @@ func (s *Simulator) processResponse(oid string, idempotencyKey string, level uin
 	}
 }
 
+func (s *Simulator) getMaxContinuationsPerResponse() int {
+	if s.maxContinuationsPerResponse < 0 {
+		return 0 // disabled
+	}
+	if s.maxContinuationsPerResponse == 0 {
+		return DefaultMaxContinuationsPerReq
+	}
+	return s.maxContinuationsPerResponse
+}
+
 func (s *Simulator) handleContinuations(oid string, idempotencyKey string, level uint64, continuations []common.ContinuationRequest) {
 	nextLevel := level + 1
 	if nextLevel > MaxContinuationLevel {
@@ -620,6 +732,19 @@ func (s *Simulator) handleContinuations(oid string, idempotencyKey string, level
 		return
 	}
 
+	// Enforce fan-out limit per response, matching the backend.
+	maxPerResp := s.getMaxContinuationsPerResponse()
+	if maxPerResp > 0 && len(continuations) > maxPerResp {
+		s.mu.Lock()
+		s.errors = append(s.errors, ErrorRecord{
+			OID:     oid,
+			Message: fmt.Sprintf("continuation count %d exceeds max %d, truncating", len(continuations), maxPerResp),
+			Time:    time.Now(),
+		})
+		s.mu.Unlock()
+		continuations = continuations[:maxPerResp]
+	}
+
 	for _, cont := range continuations {
 		delay := cont.InDelaySeconds
 		if delay > MaxContinuationDelay {
@@ -630,7 +755,6 @@ func (s *Simulator) handleContinuations(oid string, idempotencyKey string, level
 				Time:    time.Now(),
 			})
 			s.mu.Unlock()
-			delay = MaxContinuationDelay
 		}
 
 		record := ContinuationRecord{
@@ -662,24 +786,30 @@ func (s *Simulator) handleContinuations(oid string, idempotencyKey string, level
 }
 
 func generateIdempotencyKey() string {
-	return fmt.Sprintf("sim-%d", time.Now().UnixNano())
+	n := atomic.AddUint64(&idempotencyCounter, 1)
+	return fmt.Sprintf("sim-%d-%d", time.Now().UnixNano(), n)
 }
 
 // --- MockServer integration helpers ---
 
 // NewOrganization creates a [limacharlie.Organization] for the given OID.
-// If a [limacharlie.MockServer] was registered for this OID via [WithMockServer],
-// the returned organization will use the mock server. Otherwise it returns nil
-// with an error.
+// If a [limacharlie.MockServer] was registered for this OID via [WithMockServer]
+// or [AddMockServer], the returned organization will use the mock server.
+// Otherwise it returns nil with an error.
 func (s *Simulator) NewOrganization(oid string) (*limacharlie.Organization, error) {
-	if ms, ok := s.mockServers[oid]; ok {
+	s.mu.RLock()
+	ms, ok := s.mockServers[oid]
+	s.mu.RUnlock()
+	if ok {
 		return ms.NewOrganization()
 	}
-	return nil, fmt.Errorf("no MockServer registered for OID %s; use WithMockServer option", oid)
+	return nil, fmt.Errorf("no MockServer registered for OID %s; use WithMockServer option or AddMockServer", oid)
 }
 
 // MockServer returns the MockServer registered for the given OID, or nil if
 // none was registered.
 func (s *Simulator) MockServer(oid string) *limacharlie.MockServer {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.mockServers[oid]
 }
