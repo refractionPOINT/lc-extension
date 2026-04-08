@@ -3,11 +3,9 @@ module github.com/refractionPOINT/lc-extension
 go 1.25.0
 
 require (
-	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20250918165032-076ac0b711af
+	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20260408185806-19a7d1d5986f
 	github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed
 )
-
-replace github.com/refractionPOINT/go-limacharlie/limacharlie => ../go-limacharlie/limacharlie
 
 require (
 	cel.dev/expr v0.25.1 // indirect

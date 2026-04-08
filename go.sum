@@ -85,6 +85,8 @@ github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 h1:GFCKgm
 github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10/go.mod h1:t/avpk3KcrXxUnYOhZhMXJlSEyie6gQbtLq5NM3loB8=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20260408185806-19a7d1d5986f h1:7z/hoa7/BIyrlt+SgJQ/yc+t/jTjyVTz5dJIwoIztYA=
+github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20260408185806-19a7d1d5986f/go.mod h1:iUyAwIk0Xq/fA9096+dhrxHpVfSaB7RyfhfWHOaT/Sc=
 github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed h1:d9SCvhFrnSfTOmgnsmAQIqMqNKeZ+eMGw7itGRJgRmE=
 github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed/go.mod h1:vrBdshTXdAtG5MncHgvdx+N4R5zaKXFz4nnlxd+yqMs=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
