@@ -31,6 +31,11 @@ type Extension struct {
 	RequestSchema  common.RequestSchemas
 	RequiredEvents []common.EventName
 
+	// OrgFromAccess overrides how an Organization is created from
+	// OrgAccessData. If nil, the default NewOrganizationFromClientOptions
+	// is used. This is primarily useful for testing with mock servers.
+	OrgFromAccess func(common.OrgAccessData) (*limacharlie.Organization, error)
+
 	whClients map[string]*limacharlie.WebhookSender
 	mWebhooks sync.RWMutex
 
@@ -275,6 +280,9 @@ func respond(w http.ResponseWriter, status int, data interface{}) error {
 }
 
 func (e *Extension) generateSDK(oad common.OrgAccessData) (*limacharlie.Organization, error) {
+	if e.OrgFromAccess != nil {
+		return e.OrgFromAccess(oad)
+	}
 	return limacharlie.NewOrganizationFromClientOptions(limacharlie.ClientOptions{
 		OID: oad.OID,
 		JWT: oad.JWT,
