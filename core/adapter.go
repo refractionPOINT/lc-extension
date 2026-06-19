@@ -3,27 +3,111 @@ package core
 import (
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 )
 
-func (e *Extension) CreateExtensionAdapter(o *limacharlie.Organization, optMapping limacharlie.Dict) error {
-	privateTag := e.GetExtensionPrivateTag()
-	installationKey, err := o.AddInstallationKey(limacharlie.InstallationKey{
-		Description: e.getExtensionAdapterInstallationKeyDesc(),
-		Tags:        []string{"lc:system", privateTag},
+// An InstallationKey matches an Adapter iff:
+//   - The descriptions match
+//   - The InstallationKey's list of Tags contains the Adapter's PrivateTag
+func keyMatchesAdapter(k limacharlie.InstallationKey, desc, privateTag string) bool {
+	return k.Description == desc && slices.Contains(k.Tags, privateTag)
+}
+
+func (e *Extension) currentAdapterKey(hc *limacharlie.HiveClient, oid string) (string, error) {
+	rec, err := hc.Get(limacharlie.HiveArgs{
+		HiveName:     "cloud_sensor",
+		PartitionKey: oid,
+		Key:          e.ExtensionName,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create installation key for webhook adapter: %v", err)
+		if strings.Contains(err.Error(), "RECORD_NOT_FOUND") {
+			// If there is no adapter record for this extension, just return ""
+			return "", nil
+		}
+		return "", fmt.Errorf("reading cloud_sensor record: %w", err)
 	}
 
-	oid := o.GetOID()
-	isTrue := true
-	hc := limacharlie.NewHiveClient(o)
+	// Extract installation key from Data.webhook.client_options.identity.installation_key
+	webhook, ok := rec.Data["webhook"].(map[string]interface{})
+	if !ok {
+		return "", nil
+	}
+	co, ok := webhook["client_options"].(map[string]interface{})
+	if !ok {
+		return "", nil
+	}
+	identity, ok := co["identity"].(map[string]interface{})
+	if !ok {
+		return "", nil
+	}
+	installationKey, _ := identity["installation_key"].(string)
+	return installationKey, nil
+}
 
+func (e *Extension) CreateExtensionAdapter(o *limacharlie.Organization, optMapping limacharlie.Dict) error {
+	privateTag := e.GetExtensionPrivateTag()
+	desc := e.getExtensionAdapterInstallationKeyDesc()
+	oid := o.GetOID()
+	hc := limacharlie.NewHiveClient(o)
+	isTrue := true
 	if optMapping == nil {
 		optMapping = limacharlie.Dict{}
+	}
+
+	keys, err := o.InstallationKeys()
+	if err != nil {
+		return fmt.Errorf("failed to list installation keys: %v", err)
+	}
+
+	// Get all installation keys that match this extension.
+	var matching []limacharlie.InstallationKey
+	for _, k := range keys {
+		if keyMatchesAdapter(k, desc, privateTag) {
+			matching = append(matching, k)
+		}
+	}
+
+	// Resolve installationKey to either an existing key, or a new one.
+	var installationKey string
+	if len(matching) > 0 {
+		current, err := e.currentAdapterKey(hc, oid)
+		if err != nil {
+			return err
+		}
+		// If any of the keys for this extension match the one currently
+		// in Hive, use that one.
+		for _, k := range matching {
+			if k.ID == current {
+				installationKey = k.ID
+				break
+			}
+		}
+
+		// Otherwise, just pick one.
+		if installationKey == "" {
+			installationKey = matching[0].ID
+		}
+
+		// Clean up any duplicative keys
+		for _, k := range matching {
+			if k.ID != installationKey {
+				err := o.DelInstallationKey(k.ID)
+				if err != nil {
+					return fmt.Errorf("failed to delete duplicate installation key: %v", err)
+				}
+			}
+		}
+	} else {
+		installationKey, err = o.AddInstallationKey(limacharlie.InstallationKey{
+			Description: desc,
+			Tags:        []string{"lc:system", privateTag},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create installation key for webhook adapter: %v", err)
+		}
 	}
 
 	if _, err = hc.Add(limacharlie.HiveArgs{
