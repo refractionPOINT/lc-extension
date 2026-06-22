@@ -47,6 +47,9 @@ func (e *Extension) currentAdapterKey(hc *limacharlie.HiveClient, oid string) (s
 	return installationKey, nil
 }
 
+// CreateExtensionAdapter ensures exactly one webhook-adapter installation key
+// exists for this extension. It is idempotent and self-healing: it only
+// creates a key when none exist, and it deletes any duplicates.
 func (e *Extension) CreateExtensionAdapter(o *limacharlie.Organization, optMapping limacharlie.Dict) error {
 	privateTag := e.GetExtensionPrivateTag()
 	desc := e.getExtensionAdapterInstallationKeyDesc()
@@ -86,18 +89,20 @@ func (e *Extension) CreateExtensionAdapter(o *limacharlie.Organization, optMappi
 			}
 		}
 
-		// Otherwise, just pick one.
+		// Otherwise, fall back to a deterministic survivor: the smallest ID.
 		if installationKey == "" {
-			installationKey = matching[0].ID
+			installationKey = slices.MinFunc(matching, func(a, b limacharlie.InstallationKey) int {
+				return strings.Compare(a.ID, b.ID)
+			}).ID
 		}
 
-		// Clean up any duplicative keys
+		// Clean up any duplicative keys. DelInstallationKey is idempotent.
 		for _, k := range matching {
-			if k.ID != installationKey {
-				err := o.DelInstallationKey(k.ID)
-				if err != nil {
-					return fmt.Errorf("failed to delete duplicate installation key: %v", err)
-				}
+			if k.ID == installationKey {
+				continue
+			}
+			if err := o.DelInstallationKey(k.ID); err != nil {
+				return fmt.Errorf("failed to delete duplicate installation key: %v", err)
 			}
 		}
 	} else {
