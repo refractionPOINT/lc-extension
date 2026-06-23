@@ -355,3 +355,77 @@ func TestIsErrorRetriable(t *testing.T) {
 		})
 	}
 }
+
+// TestDoRun_SuccessOutputInEvent verifies the per-tool opt-in that controls
+// whether a successful command's output is persisted in the run event (#3950).
+// Output is included only when the descriptor sets IncludeOutputInEvent, so
+// secret-returning tools don't leak output into the event stream by default.
+func TestDoRun_SuccessOutputInEvent(t *testing.T) {
+	originalSendToWebhook := sendToWebhookAdapterFunc
+	originalStopThisInstance := stopThisInstanceFunc
+	defer func() {
+		sendToWebhookAdapterFunc = originalSendToWebhook
+		stopThisInstanceFunc = originalStopThisInstance
+	}()
+	stopThisInstanceFunc = func(_ limacharlie.LCLogger, _ *limacharlie.Organization, _ *CLIRunRequest, _ string) {}
+
+	org, err := limacharlie.NewOrganizationFromClientOptions(dummyOpt, dummyLogger{})
+	if err != nil {
+		t.Fatalf("failed to create organization: %v", err)
+	}
+
+	run := func(includeOutput bool) limacharlie.Dict {
+		var capturedHook limacharlie.Dict
+		sendToWebhookAdapterFunc = func(_ *core.Extension, _ *limacharlie.Organization, hook limacharlie.Dict) error {
+			capturedHook = hook
+			return nil
+		}
+		cliExt := &CLIExtension{
+			Name:      "test-extension",
+			SecretKey: "secret",
+			Logger:    dummyLogger{},
+			Descriptors: map[CLIName]CLIDescriptor{
+				"dummy": {
+					ProcessCommand: func(_ context.Context, _ []string, _ string) (CLIReturnData, error) {
+						return CLIReturnData{StatusCode: 0, OutputString: "hello-output"}, nil
+					},
+					IncludeOutputInEvent: includeOutput,
+				},
+			},
+			extension: dummyCoreExt,
+		}
+		req := &CLIRunRequest{CommandLine: "cmd", CommandTokens: []string{"cmd"}, Credentials: "creds", Tool: "dummy"}
+		resp := cliExt.doRun(org, req, "ident", "inv")
+		if resp.Error != "" {
+			t.Fatalf("expected no error, got: %s", resp.Error)
+		}
+		if capturedHook == nil {
+			t.Fatal("expected webhook to be called with a hook")
+		}
+		if capturedHook["action"] != "run" {
+			t.Errorf("expected action 'run', got %v", capturedHook["action"])
+		}
+		if _, hasErr := capturedHook["error"]; hasErr {
+			t.Errorf("did not expect an error field on success, got: %v", capturedHook["error"])
+		}
+		return capturedHook
+	}
+
+	t.Run("opted in includes output", func(t *testing.T) {
+		hook := run(true)
+		respData, ok := hook["response"].(*CLIReturnData)
+		if !ok {
+			t.Fatalf("expected hook[\"response\"] to be *CLIReturnData, got: %T", hook["response"])
+		}
+		if respData.OutputString != "hello-output" {
+			t.Errorf("expected output 'hello-output' in event, got: %q", respData.OutputString)
+		}
+	})
+
+	t.Run("default off omits output", func(t *testing.T) {
+		hook := run(false)
+		if _, hasResp := hook["response"]; hasResp {
+			t.Errorf("expected no response in event when opt-in is off, got: %v", hook["response"])
+		}
+	})
+}

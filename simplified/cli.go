@@ -24,6 +24,13 @@ type CLIDescriptor struct {
 	ProcessCommand    CLIHandler
 	CredentialsFormat string
 	ExampleCommand    string
+
+	// IncludeOutputInEvent, when true, persists the command's output in the
+	// "run" event on success so it can be used by D&R rules, bidirectionality,
+	// and an immutable history (#3950). It defaults to false because the output
+	// is not redacted and some tools return secrets (e.g. 1Password `op item
+	// get`); only enable it for tools whose output is safe to persist.
+	IncludeOutputInEvent bool
 }
 
 type CLIReturnData struct {
@@ -383,6 +390,14 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		// CLI arguments, credentials, etc.
 		e.Logger.Info(fmt.Sprintf("command for %s and tool %s failed and took %f seconds: %v", o.GetOID(), request.Tool, elapsed.Seconds(), err))
 	} else {
+		// Persist the command output in the event so results aren't ephemeral,
+		// enabling D&R rules, bidirectionality, and an immutable history (#3950).
+		// Gated per-tool and off by default: output is not redacted and some
+		// tools return secrets (e.g. 1Password `op item get`), so only tools
+		// that opt in have their successful output written to the event stream.
+		if handler.IncludeOutputInEvent {
+			hook["response"] = &resp
+		}
 		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
