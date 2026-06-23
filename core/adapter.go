@@ -76,12 +76,11 @@ func (e *Extension) CreateExtensionAdapter(o *limacharlie.Organization, optMappi
 	// Resolve installationKey to either an existing key, or a new one.
 	var installationKey string
 	if len(matching) > 0 {
+		// Best-effort attempt to use the current adapter key if we can.
 		current, err := e.currentAdapterKey(hc, oid)
 		if err != nil {
-			return err
+			current = ""
 		}
-		// If any of the keys for this extension match the one currently
-		// in Hive, use that one.
 		for _, k := range matching {
 			if k.ID == current {
 				installationKey = k.ID
