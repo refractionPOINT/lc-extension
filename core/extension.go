@@ -283,9 +283,13 @@ func (e *Extension) generateSDK(oad common.OrgAccessData) (*limacharlie.Organiza
 	if e.OrgFromAccess != nil {
 		return e.OrgFromAccess(oad)
 	}
+	// LC_API_URL / LC_JWT_URL override the production endpoints so an
+	// extension can run against a local or test stack; empty means default.
 	return limacharlie.NewOrganizationFromClientOptions(limacharlie.ClientOptions{
-		OID: oad.OID,
-		JWT: oad.JWT,
+		OID:    oad.OID,
+		JWT:    oad.JWT,
+		URL:    os.Getenv("LC_API_URL"),
+		JWTURL: os.Getenv("LC_JWT_URL"),
 	}, nil)
 }
 
