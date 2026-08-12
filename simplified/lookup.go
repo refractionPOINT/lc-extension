@@ -10,7 +10,10 @@ import (
 	"github.com/refractionPOINT/lc-extension/core"
 )
 
-const updateRuleHive = "dr-managed"
+const (
+	updateRuleHive = "dr-managed"
+	lookupDataKey  = "lookup_data"
+)
 
 type (
 	GetLookupCallback = func(ctx context.Context) (LookupData, error)
@@ -238,7 +241,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 				PartitionKey: params.Org.GetOID(),
 				Key:          luName,
 				Data: limacharlie.Dict{
-					"lookup_data": d,
+					lookupDataKey: d,
 				},
 				Tags:    []string{l.tag},
 				Enabled: &isTrue,

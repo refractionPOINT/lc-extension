@@ -48,9 +48,9 @@ func TestAsDictMatchesImportFromStruct(t *testing.T) {
 			// Compare marshalled forms: the round-trip normalises Go types
 			// (e.g. []string -> []interface{}), so the maps are not
 			// DeepEqual even though the emitted payload is the same.
-			fastJSON, err := json.Marshal(limacharlie.Dict{"lookup_data": fast})
+			fastJSON, err := json.Marshal(limacharlie.Dict{lookupDataKey: fast})
 			require.NoError(t, err)
-			slowJSON, err := json.Marshal(limacharlie.Dict{"lookup_data": slow})
+			slowJSON, err := json.Marshal(limacharlie.Dict{lookupDataKey: slow})
 			require.NoError(t, err)
 			require.JSONEq(t, string(slowJSON), string(fastJSON))
 		})
