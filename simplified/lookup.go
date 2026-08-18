@@ -10,7 +10,10 @@ import (
 	"github.com/refractionPOINT/lc-extension/core"
 )
 
-const updateRuleHive = "dr-managed"
+const (
+	updateRuleHive = "dr-managed"
+	lookupDataKey  = "lookup_data"
+)
 
 type (
 	GetLookupCallback = func(ctx context.Context) (LookupData, error)
@@ -192,6 +195,19 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	return x, nil
 }
 
+// asDict reuses lookup data that is already a map instead of copying it.
+// The result is only ever marshalled (HiveClient.Add streams it through
+// json.Encoder), so callers must treat it as read-only.
+func asDict(v interface{}) (limacharlie.Dict, bool) {
+	switch d := v.(type) {
+	case limacharlie.Dict:
+		return d, true
+	case map[string]interface{}:
+		return limacharlie.Dict(d), true
+	}
+	return nil, false
+}
+
 func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallbackParams) common.Response {
 	h := limacharlie.NewHiveClient(params.Org)
 
@@ -206,11 +222,16 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Convert the interface to a Dict.
-			d := limacharlie.Dict{}
-			if _, err := d.ImportFromStruct(luData); err != nil {
-				l.Logger.Error(fmt.Sprintf("failed to unmarshal lookup %s: %s", luName, err.Error()))
-				return
+			// Convert the interface to a Dict. ImportFromStruct round-trips
+			// through JSON, which doubles peak memory for large lookups; when
+			// the callback already handed us a map there is nothing to coerce.
+			d, ok := asDict(luData)
+			if !ok {
+				d = limacharlie.Dict{}
+				if _, err := d.ImportFromStruct(luData); err != nil {
+					l.Logger.Error(fmt.Sprintf("failed to unmarshal lookup %s: %s", luName, err.Error()))
+					return
+				}
 			}
 
 			// Push the update.
@@ -220,7 +241,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 				PartitionKey: params.Org.GetOID(),
 				Key:          luName,
 				Data: limacharlie.Dict{
-					"lookup_data": d,
+					lookupDataKey: d,
 				},
 				Tags:    []string{l.tag},
 				Enabled: &isTrue,
