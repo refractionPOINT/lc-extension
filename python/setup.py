@@ -1,6 +1,6 @@
 from setuptools import setup
 
-__version__ = "1.1.10"
+__version__ = "1.1.11"
 __author__ = "Maxime Lamothe-Brassard ( Refraction Point, Inc )"
 __author_email__ = "maxime@refractionpoint.com"
 __license__ = "Apache v2"
@@ -15,6 +15,6 @@ setup( name = 'lcextension',
        license = __license__,
        packages = [ 'lcextension' ],
        zip_safe = True,
-       install_requires = [ 'limacharlie', 'flask' ],
+       install_requires = [ 'limacharlie<5', 'flask' ],
        long_description = 'Reference implementation for LimaCharlie.io extensions, allowing anyone to extend and automate extensions around LimaCharlie.'
 )

@@ -1,10 +1,12 @@
-FROM golang:1.24 AS builder
+# Build from the repository root so multiplexer's `replace ../` resolves:
+#   docker build -f multiplexer/simple/Dockerfile .
+FROM golang:1.25 AS builder
 
 ENV GOPATH=
 
 WORKDIR /build
 ADD . /build
-RUN cd /build && go build -v -o simple
+RUN cd /build/multiplexer && go build -v -o /build/simple ./simple
 
 FROM gcr.io/distroless/base-debian12:latest
 
