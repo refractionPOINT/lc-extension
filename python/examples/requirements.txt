@@ -1,4 +1,4 @@
 flask
 gunicorn
 lcextension
-limacharlie
+limacharlie<5
