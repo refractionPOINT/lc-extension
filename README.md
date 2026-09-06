@@ -43,6 +43,36 @@ The main mechanism where you'll implement functionality is within callbacks. The
 - Organization: most callbacks will receive and instance of a `limacharlie.Organization` which is the root of the LimaCharlie SDK. This SDK will be pre-authenticated for you for the org who's callback you're receiving. This means you never have to store credentials.
 - Idempotent Key: a simple key for each unique callback sent to your Extension, you can use this to deduplicate requests if they are ever retried.
 - Request Data: data related to a specific Action you've registered for.
+- ACL: for Requests, a platform-set view of what the initiator may access with respect to LimaCharlie resource ACLs (see below).
+
+### Resource ACLs on Requests
+LimaCharlie resource ACLs restrict the *content* of a resource (a sensor, a hive record...) by tagging it `acl:<scope>`: only principals holding the scope `<scope>` may read it. Multiple `acl:` tags on one resource are ANDed.
+
+To let an Extension honor those ACLs, LimaCharlie adds a signed, top-level `acl` block to every `request` envelope it sends (it is never inside `data`, which is user-controlled):
+
+```json
+"request": {
+  "org": {...}, "action": "...", "data": {...}, "config": {...},
+  "acl": {
+    "scopes":  ["hr", "finance"],
+    "global":  false,
+    "enforce": true,
+    "source":  "user"
+  }
+}
+```
+- `scopes`: scope names the initiator holds (normalized, no `acl:` prefix).
+- `global`: the initiator holds `access.global` and is allowed everywhere.
+- `enforce`: the org has at least one enabled scope. `false` means nothing is restricted and the Extension may skip every ACL check for this request.
+- `source`: one of `user`, `impersonated`, `dr`, `continuation`, `internal`. Informational only.
+
+In Go the block is exposed as `params.ACL` (a `common.ACLView`) on `RequestCallbackParams`:
+- `params.ACL.Allows(tags []string) bool` applies the platform rule: true when `Global`, true when `!Enforce`, otherwise every `acl:` tag in `tags` must name a held scope. A bare `acl:` or an unknown scope locks the resource; tags without the `acl:` prefix are ignored; comparison is case-insensitive with whitespace trimmed and comma-joined entries are split.
+- `params.ACL.Present() bool` reports whether the envelope carried the block.
+
+**Fail-closed default:** when the block is absent (for instance an older LimaCharlie extension manager), the view is `Scopes: nil, Global: false, Enforce: true, Present: false`. `Allows` then returns `false` for any resource carrying an `acl:` tag and `true` for untagged ones, so an Extension that enforces ACLs can never leak a restricted resource because the platform did not say what the initiator holds.
+
+`Allows` only ever restricts: use it in addition to your normal permission checks, never to grant access the org permissions would not already allow. The Python SDK exposes the same thing as `msg_request.acl` (an `lcextension.ACL` with `allows(tags)` and `present`), passed as an optional fifth argument to request handlers that declare one.
 
 There are two types of opaque bits of data your Extension can leverage:
 1. Config

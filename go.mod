@@ -6,6 +6,7 @@ require (
 	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20260730214850-66dd27031dd3
 	github.com/refractionPOINT/shlex v0.0.0-20240130182828-ebac721e86ed
 	github.com/stretchr/testify v1.11.1
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
 
 require (
@@ -40,6 +41,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.7.0 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0 // indirect

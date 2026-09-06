@@ -62,6 +62,12 @@ type RequestCallbackParams struct {
 	IdempotentKey   string
 	ResourceState   map[string]common.ResourceState
 	InvestigationID string
+	// ACL describes what the initiator of the request may access with
+	// respect to resource ACLs (resources tagged "acl:<scope>"). It is set
+	// by the platform and is always usable: when the envelope carried no
+	// ACL block, ACL.Present() is false and the view fails closed (see
+	// common.ACLView).
+	ACL common.ACLView
 }
 
 type RequestCallback struct {
@@ -194,6 +200,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			IdempotentKey:   message.IdempotencyKey,
 			ResourceState:   message.Request.ResourceState,
 			InvestigationID: message.Request.InvestigationID,
+			ACL:             common.NewACLView(message.Request.ACL),
 		})
 	} else if message.ErrorReport != nil {
 		e.Callbacks.ErrorHandler(message.ErrorReport)
@@ -308,6 +315,24 @@ func unmarshalToStruct(d limacharlie.Dict, s interface{}) (interface{}, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// ToRequestMessage rebuilds the request envelope that produced these params so
+// that an intermediary (such as the multiplexer) can forward the request to
+// another extension. The org access data is provided by the caller since the
+// forwarded credentials may differ from the received ones. Every platform-set
+// field, including the ACL block (or its absence), is carried over unchanged.
+func (p RequestCallbackParams) ToRequestMessage(action common.ActionName, org common.OrgAccessData) *common.RequestMessage {
+	data, _ := p.Request.(limacharlie.Dict)
+	return &common.RequestMessage{
+		Org:             org,
+		Action:          action,
+		Data:            data,
+		Config:          p.Config,
+		ResourceState:   p.ResourceState,
+		InvestigationID: p.InvestigationID,
+		ACL:             p.ACL.Envelope(),
+	}
 }
 
 func (e *Extension) GetExtensionPrivateTag() string {

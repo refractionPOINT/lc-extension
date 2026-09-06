@@ -543,15 +543,14 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 	newReq := &common.Message{
 		Version:        core.PROTOCOL_VERSION,
 		IdempotencyKey: params.IdempotentKey,
-		Request: &common.RequestMessage{
-			Org: common.OrgAccessData{
-				OID: params.Org.GetOID(),
-				JWT: params.Org.GetCurrentJWT(),
-			},
-			Action: action,
-			Data:   params.Request.(limacharlie.Dict),
-			Config: params.Config,
-		},
+		// Rebuild the envelope from the params so that every platform-set
+		// field (resource state, investigation id, ACL block, ident) is
+		// forwarded to the worker unchanged.
+		Request: params.ToRequestMessage(action, common.OrgAccessData{
+			OID:   params.Org.GetOID(),
+			JWT:   params.Org.GetCurrentJWT(),
+			Ident: params.Ident,
+		}),
 	}
 	if e.HookSendMessage != nil {
 		newReq, err = e.HookSendMessage(ctx, e, params.Org, newReq)

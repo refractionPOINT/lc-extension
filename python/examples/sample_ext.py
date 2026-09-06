@@ -52,7 +52,12 @@ class SampleExtension(lcextension.Extension):
         # be reported as a failure to validate for LimaCharlie.
         pass
 
-    def handlePing(self, sdk, data, conf, resState):
+    # The trailing "acl" parameter is optional: handlers declared with the
+    # historical (sdk, data, conf, resState) signature keep working. When
+    # present it describes what the initiator may access with respect to
+    # resource ACLs; use acl.allows(resource_tags) before returning any
+    # ACL-restricted resource content.
+    def handlePing(self, sdk, data, conf, resState, acl=None):
         return lcextension.Response(data = data)
     
     def handleSubscribe(self, sdk, data, conf):
