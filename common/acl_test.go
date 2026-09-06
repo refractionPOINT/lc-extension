@@ -9,6 +9,12 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
+const (
+	tagProd    = "prod"
+	tagHR      = "acl:hr"
+	tagFinance = "acl:finance"
+)
+
 func TestACLViewAllows(t *testing.T) {
 	enforcing := func(scopes ...string) ACLView {
 		return NewACLView(&ACL{Scopes: scopes, Enforce: true, Source: ACLSourceUser})
@@ -19,27 +25,27 @@ func TestACLViewAllows(t *testing.T) {
 		tags []string
 		want bool
 	}{
-		{"untagged resource", enforcing("hr"), []string{"prod", "windows"}, true},
+		{"untagged resource", enforcing("hr"), []string{tagProd, "windows"}, true},
 		{"no tags at all", enforcing("hr"), nil, true},
-		{"member of the scope", enforcing("hr"), []string{"acl:hr"}, true},
-		{"not a member", enforcing("hr"), []string{"acl:finance"}, false},
-		{"AND over two scopes, both held", enforcing("hr", "finance"), []string{"acl:hr", "acl:finance"}, true},
-		{"AND over two scopes, one missing", enforcing("hr"), []string{"acl:hr", "acl:finance"}, false},
+		{"member of the scope", enforcing("hr"), []string{tagHR}, true},
+		{"not a member", enforcing("hr"), []string{tagFinance}, false},
+		{"AND over two scopes, both held", enforcing("hr", "finance"), []string{tagHR, tagFinance}, true},
+		{"AND over two scopes, one missing", enforcing("hr"), []string{tagHR, tagFinance}, false},
 		{"unknown scope locks", enforcing("hr"), []string{"acl:does-not-exist"}, false},
-		{"bare acl: locks", enforcing("hr"), []string{"acl:"}, false},
+		{"bare acl: locks", enforcing("hr"), []string{ACLTagPrefix}, false},
 		{"bare acl: locks even with whitespace", enforcing("hr"), []string{" ACL:  "}, false},
 		{"mixed case and whitespace on tag", enforcing("hr"), []string{"  ACL:HR  "}, true},
-		{"mixed case and whitespace on scope", enforcing("  HR "), []string{"acl:hr"}, true},
+		{"mixed case and whitespace on scope", enforcing("  HR "), []string{tagHR}, true},
 		{"comma-joined entry, all held", enforcing("hr", "finance"), []string{"prod,acl:hr, acl:finance"}, true},
 		{"comma-joined entry, one missing", enforcing("hr"), []string{"acl:hr,acl:finance"}, false},
-		{"non-acl tags mixed in are ignored", enforcing("hr"), []string{"prod", "acl:hr", "win"}, true},
+		{"non-acl tags mixed in are ignored", enforcing("hr"), []string{tagProd, tagHR, "win"}, true},
 		{"prefix must be exact namespace", enforcing("hr"), []string{"acls:hr", "xacl:hr"}, true},
-		{"empty scopes with acl tag locks", enforcing(), []string{"acl:hr"}, false},
-		{"global allows everything", NewACLView(&ACL{Global: true, Enforce: true}), []string{"acl:hr", "acl:"}, true},
-		{"enforce=false allows everything", NewACLView(&ACL{Enforce: false}), []string{"acl:hr", "acl:"}, true},
-		{"absent block: untagged allowed", NewACLView(nil), []string{"prod"}, true},
-		{"absent block: tagged locked", NewACLView(nil), []string{"acl:hr"}, false},
-		{"absent block: bare acl: locked", NewACLView(nil), []string{"acl:"}, false},
+		{"empty scopes with acl tag locks", enforcing(), []string{tagHR}, false},
+		{"global allows everything", NewACLView(&ACL{Global: true, Enforce: true}), []string{tagHR, ACLTagPrefix}, true},
+		{"enforce=false allows everything", NewACLView(&ACL{Enforce: false}), []string{tagHR, ACLTagPrefix}, true},
+		{"absent block: untagged allowed", NewACLView(nil), []string{tagProd}, true},
+		{"absent block: tagged locked", NewACLView(nil), []string{tagHR}, false},
+		{"absent block: bare acl: locked", NewACLView(nil), []string{ACLTagPrefix}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,11 +95,11 @@ func TestACLScopeFromTag(t *testing.T) {
 		scope string
 		ok    bool
 	}{
-		{"acl:hr", "hr", true},
+		{tagHR, "hr", true},
 		{" ACL:HR ", "hr", true},
-		{"acl:", "", true},
+		{ACLTagPrefix, "", true},
 		{"acl: ", "", true},
-		{"prod", "", false},
+		{tagProd, "", false},
 		{"", "", false},
 		{"acls:hr", "", false},
 	}

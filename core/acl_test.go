@@ -16,7 +16,12 @@ import (
 	"github.com/refractionPOINT/lc-extension/common"
 )
 
-const testSecret = "test-secret"
+const (
+	testSecret = "test-secret"
+	testAction = "ping"
+	testIdem   = "idem"
+	testIdent  = "someone@example.com"
+)
 
 // serveRequest signs and posts a request envelope to the extension and returns
 // the params the "ping" handler was invoked with.
@@ -24,7 +29,7 @@ func serveRequest(t *testing.T, ext *Extension, msg common.Message) (RequestCall
 	t.Helper()
 	var got RequestCallbackParams
 	ext.Callbacks.RequestHandlers = map[common.ActionName]RequestCallback{
-		"ping": {
+		testAction: {
 			RequestStruct: nil,
 			Callback: func(ctx context.Context, params RequestCallbackParams) common.Response {
 				got = params
@@ -73,10 +78,10 @@ func TestRequestHandlerReceivesACLBlock(t *testing.T) {
 	block := &common.ACL{Scopes: []string{"hr", "finance"}, Global: false, Enforce: true, Source: common.ACLSourceUser}
 	params, rec := serveRequest(t, ext, common.Message{
 		Version:        PROTOCOL_VERSION,
-		IdempotencyKey: "idem",
+		IdempotencyKey: testIdem,
 		Request: &common.RequestMessage{
-			Org:    common.OrgAccessData{OID: "oid-test", JWT: "jwt", Ident: "someone@example.com"},
-			Action: "ping",
+			Org:    common.OrgAccessData{OID: "oid-test", JWT: "jwt", Ident: testIdent},
+			Action: testAction,
 			Data:   limacharlie.Dict{"acl": map[string]interface{}{"global": true}}, // user-controlled, must be ignored
 			Config: limacharlie.Dict{},
 			ACL:    block,
@@ -97,7 +102,7 @@ func TestRequestHandlerReceivesACLBlock(t *testing.T) {
 	if !params.ACL.Allows([]string{"acl:hr"}) || params.ACL.Allows([]string{"acl:legal"}) {
 		t.Fatal("Allows does not reflect the scopes in the envelope")
 	}
-	if params.Ident != "someone@example.com" {
+	if params.Ident != testIdent {
 		t.Fatalf("Ident = %q", params.Ident)
 	}
 }
@@ -108,10 +113,10 @@ func TestRequestHandlerWithoutACLBlockFailsClosed(t *testing.T) {
 
 	params, rec := serveRequest(t, ext, common.Message{
 		Version:        PROTOCOL_VERSION,
-		IdempotencyKey: "idem",
+		IdempotencyKey: testIdem,
 		Request: &common.RequestMessage{
 			Org:    common.OrgAccessData{OID: "oid-test", JWT: "jwt"},
-			Action: "ping",
+			Action: testAction,
 			Data:   limacharlie.Dict{},
 			Config: limacharlie.Dict{},
 		},
@@ -136,19 +141,19 @@ func TestRequestHandlerWithoutACLBlockFailsClosed(t *testing.T) {
 func TestToRequestMessageForwardsEnvelopeUnchanged(t *testing.T) {
 	block := &common.ACL{Scopes: []string{"hr"}, Global: false, Enforce: true, Source: common.ACLSourceContinuation}
 	params := RequestCallbackParams{
-		Ident:           "someone@example.com",
+		Ident:           testIdent,
 		Request:         limacharlie.Dict{"k": "v"},
 		Config:          limacharlie.Dict{"c": "d"},
-		IdempotentKey:   "idem",
+		IdempotentKey:   testIdem,
 		ResourceState:   map[string]common.ResourceState{"r": {LastModified: 7}},
 		InvestigationID: "inv-1",
 		ACL:             common.NewACLView(block),
 	}
 	oad := common.OrgAccessData{OID: "oid-1", JWT: "fwd-jwt", Ident: params.Ident}
-	got := params.ToRequestMessage("ping", oad)
+	got := params.ToRequestMessage(testAction, oad)
 	want := &common.RequestMessage{
 		Org:             oad,
-		Action:          "ping",
+		Action:          testAction,
 		Data:            limacharlie.Dict{"k": "v"},
 		Config:          limacharlie.Dict{"c": "d"},
 		ResourceState:   map[string]common.ResourceState{"r": {LastModified: 7}},
@@ -179,7 +184,7 @@ func TestToRequestMessageWithoutACLBlockStaysAbsent(t *testing.T) {
 		Request: limacharlie.Dict{},
 		ACL:     common.NewACLView(nil),
 	}
-	got := params.ToRequestMessage("ping", common.OrgAccessData{OID: "oid-1"})
+	got := params.ToRequestMessage(testAction, common.OrgAccessData{OID: "oid-1"})
 	if got.ACL != nil {
 		t.Fatalf("absent block must be forwarded as absent, got %+v", got.ACL)
 	}
