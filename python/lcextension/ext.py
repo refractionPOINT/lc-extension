@@ -8,9 +8,26 @@ import time
 import sys
 import threading
 import os
+import inspect
 from typing import Dict, List, Optional, Any, Union, Callable
 from .messages import *
 from .schema import *
+
+def _acceptsACLArgument(handler: Callable[..., Any]) -> bool:
+    '''Report whether a request handler can receive the ACL block as a fifth
+    positional argument: it declares at least five positional parameters
+    (excluding a bound self) or accepts *args.'''
+    try:
+        sig = inspect.signature(handler)
+    except (TypeError, ValueError):
+        return False
+    nPositional = 0
+    for p in sig.parameters.values():
+        if p.kind == inspect.Parameter.VAR_POSITIONAL:
+            return True
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+            nPositional += 1
+    return nPositional >= 5
 
 class Extension(object):
     
@@ -98,7 +115,7 @@ class Extension(object):
             if handler is None:
                 self.logCritical(f"unknown action '{msg.msg_request.action}'")
                 return Response(error = f"unknown action '{msg.msg_request.action}'")
-            return handler(sdk, msg.msg_request.data, msg.msg_request.conf, msg.msg_request.resState)
+            return self._callRequestHandler(handler, sdk, msg.msg_request)
         if msg.msg_event is not None:
             sdk = limacharlie.Manager(oid = msg.msg_event.org_access_data.oid, jwt = msg.msg_event.org_access_data.jwt)
             handler = self.eventHandlers.get(msg.msg_event.event_name, None)
@@ -118,6 +135,15 @@ class Extension(object):
             })
         return Response(error = 'no data in request')
     
+    def _callRequestHandler(self, handler: Callable[..., Response], sdk: limacharlie.Manager, req: MessageRequest) -> Response:
+        # Request handlers historically take (sdk, data, conf, resState). The
+        # platform-set ACL block is passed as an optional trailing positional
+        # argument to handlers that declare a fifth parameter (or *args), so
+        # existing four-argument handlers keep working unchanged.
+        if _acceptsACLArgument(handler):
+            return handler(sdk, req.data, req.conf, req.resState, req.acl)
+        return handler(sdk, req.data, req.conf, req.resState)
+
     def _handleEvent(self, sdk: limacharlie.Manager, data: Dict[str, Any], conf: Dict[str, Any]) -> Response:
         return Response()
     
