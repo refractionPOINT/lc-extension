@@ -72,6 +72,11 @@ type RequestMessage struct {
 	Config          limacharlie.Dict         `json:"config" msgpack:"config"`
 	ResourceState   map[string]ResourceState `json:"resource_state" msgpack:"resource_state"`
 	InvestigationID string                   `json:"inv_id" msgpack:"inv_id"`
+	// ACL is set by the platform (never by the user) and describes what the
+	// initiator of the request may access with respect to resource ACLs.
+	// It is absent when the sending LimaCharlie extension manager predates
+	// resource ACLs; see ACLView for how the SDK treats that case.
+	ACL *ACL `json:"acl,omitempty" msgpack:"acl,omitempty"`
 }
 
 type ResourceState struct {
