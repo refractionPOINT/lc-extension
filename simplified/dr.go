@@ -129,26 +129,13 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				// We set up a D&R rule for recurring update.
 				h := limacharlie.NewHiveClient(org)
 				trueValue := true
-				if _, err := h.Add(limacharlie.HiveArgs{
+				if err := addUpdateRule(h, l.Logger, limacharlie.HiveArgs{
 					HiveName:     updateRuleHive,
 					PartitionKey: org.GetOID(),
 					Key:          l.ruleName,
-					Data: limacharlie.Dict{
-						"detect": limacharlie.Dict{
-							"target": "schedule",
-							"event":  "12h_per_org",
-							"op":     "exists",
-							"path":   "event",
-						},
-						"respond": []limacharlie.Dict{{
-							"action":            "extension request",
-							"extension name":    l.Name,
-							"extension action":  "update_rules",
-							"extension request": limacharlie.Dict{},
-						}},
-					},
-					Tags:    []string{l.tag},
-					Enabled: &trueValue,
+					Data:         updateRuleData(l.Name, "update_rules"),
+					Tags:         []string{l.tag},
+					Enabled:      &trueValue,
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to add scheduling D&R rule: %s", err.Error()))
 					return common.Response{Error: err.Error()}
@@ -264,6 +251,46 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 		return common.Response{Error: err.Error()}
 	}
 
+	// A recurring update rule installed before acl_scopes existed gets them.
+	upgradeUpdateRule(h, l.Logger, params.Org.GetOID(), l.ruleName)
+
+	return l.updateRules(ctx, hiveRuleStore{h}, params.Org.GetOID(), config)
+}
+
+// ruleStore is the part of the HiveClient used to reconcile the rules.
+type ruleStore interface {
+	List(args limacharlie.HiveArgs) (limacharlie.HiveConfigData, error)
+	NewBatch() ruleBatch
+}
+
+// ruleBatch is the part of a HiveBatch used to reconcile the rules. Execute
+// answers every operation, in the order they were added.
+type ruleBatch interface {
+	SetRecord(record limacharlie.RecordID, config limacharlie.ConfigRecordMutation)
+	DelRecord(record limacharlie.RecordID)
+	Execute() ([]limacharlie.BatchResponse, error)
+}
+
+type hiveRuleStore struct {
+	*limacharlie.HiveClient
+}
+
+func (h hiveRuleStore) NewBatch() ruleBatch {
+	return h.NewBatchOperations()
+}
+
+// setRuleOp is a rule write added to a batch, remembered so that the answer to
+// it can be told apart from the others.
+type setRuleOp struct {
+	record   limacharlie.RecordID
+	mutation limacharlie.ConfigRecordMutation
+	// isInstalledWithoutScopes is set when the rule is already in Hive as
+	// wanted except for its acl_scopes.
+	isInstalledWithoutScopes bool
+}
+
+func (l *RuleExtension) updateRules(ctx context.Context, h ruleStore, oid string, config ruleConfig) common.Response {
+
 	rulesData, err := l.GetRules(ctx)
 	if err != nil {
 		return common.Response{Error: err.Error()}
@@ -272,13 +299,15 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 	suppTime := l.shimSuppressionTime(config.GlobalSuppressionTime)
 
 	// Apply the suppression time to all rules.
-	batchUpdate := h.NewBatchOperations()
+	batchUpdate := h.NewBatch()
+	// The operations added to the batch, in order: nil for a removal.
+	batchOps := []*setRuleOp{}
 	for namespace, rules := range rulesData {
 		// Fetch all the rules in Hive for the given namespace.
 		hiveName := fmt.Sprintf("dr-%s", namespace)
 		existing, err := h.List(limacharlie.HiveArgs{
 			HiveName:     hiveName,
-			PartitionKey: params.Org.GetOID(),
+			PartitionKey: oid,
 		})
 		if err != nil {
 			l.Logger.Error(fmt.Sprintf("failed to list rules: %s", err.Error()))
@@ -305,19 +334,24 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 			// If not, we'll add it.
 			// If we do, diff it and update it if needed.
 			if existingRule, ok := existing[ruleName]; !ok {
-				batchUpdate.SetRecord(limacharlie.RecordID{
-					Hive: limacharlie.HiveID{
-						Name:      limacharlie.HiveName(hiveName),
-						Partition: limacharlie.PartitionID(params.Org.GetOID()),
+				op := &setRuleOp{
+					record: limacharlie.RecordID{
+						Hive: limacharlie.HiveID{
+							Name:      limacharlie.HiveName(hiveName),
+							Partition: limacharlie.PartitionID(oid),
+						},
+						Name: limacharlie.RecordName(ruleName),
 					},
-					Name: limacharlie.RecordName(ruleName),
-				}, limacharlie.ConfigRecordMutation{
-					Data: ruleToSet,
-					UsrMtd: &limacharlie.UsrMtd{
-						Enabled: !config.DisableByDefault,
-						Tags:    l.mergeTags(ruleData.Tags, []string{}),
+					mutation: limacharlie.ConfigRecordMutation{
+						Data: ruleToSet,
+						UsrMtd: &limacharlie.UsrMtd{
+							Enabled: !config.DisableByDefault,
+							Tags:    l.mergeTags(ruleData.Tags, []string{}),
+						},
 					},
-				})
+				}
+				batchUpdate.SetRecord(op.record, op.mutation)
+				batchOps = append(batchOps, op)
 				if isDebugLogRules {
 					l.Logger.Info(fmt.Sprintf("adding rule %s: %s", ruleName, ruleToSet))
 				}
@@ -326,19 +360,27 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 				if isDebugLogRules {
 					l.Logger.Info(fmt.Sprintf("updating rule %s: %s", ruleName, ruleToSet))
 				}
-				batchUpdate.SetRecord(limacharlie.RecordID{
-					Hive: limacharlie.HiveID{
-						Name:      limacharlie.HiveName(hiveName),
-						Partition: limacharlie.PartitionID(params.Org.GetOID()),
+				op := &setRuleOp{
+					record: limacharlie.RecordID{
+						Hive: limacharlie.HiveID{
+							Name:      limacharlie.HiveName(hiveName),
+							Partition: limacharlie.PartitionID(oid),
+						},
+						Name: limacharlie.RecordName(ruleName),
 					},
-					Name: limacharlie.RecordName(ruleName),
-				}, limacharlie.ConfigRecordMutation{
-					Data: ruleToSet,
-					UsrMtd: &limacharlie.UsrMtd{
-						Enabled: !config.DisableByDefault,
-						Tags:    l.mergeTags(ruleData.Tags, []string{}),
+					mutation: limacharlie.ConfigRecordMutation{
+						Data: ruleToSet,
+						UsrMtd: &limacharlie.UsrMtd{
+							Enabled: !config.DisableByDefault,
+							Tags:    l.mergeTags(ruleData.Tags, []string{}),
+						},
 					},
-				})
+				}
+				if withoutScopes, hasScopes := withoutACLScopes(ruleToSet); hasScopes {
+					op.isInstalledWithoutScopes = areEqual(withoutScopes, existingRule.Data)
+				}
+				batchUpdate.SetRecord(op.record, op.mutation)
+				batchOps = append(batchOps, op)
 			}
 		}
 
@@ -362,10 +404,11 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 			batchUpdate.DelRecord(limacharlie.RecordID{
 				Hive: limacharlie.HiveID{
 					Name:      limacharlie.HiveName(hiveName),
-					Partition: limacharlie.PartitionID(params.Org.GetOID()),
+					Partition: limacharlie.PartitionID(oid),
 				},
 				Name: limacharlie.RecordName(ruleName),
 			})
+			batchOps = append(batchOps, nil)
 		}
 	}
 
@@ -375,10 +418,54 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 		l.Logger.Error(fmt.Sprintf("failed to update rules: %s", err.Error()))
 		return common.Response{Error: err.Error()}
 	}
-	for _, op := range ops {
-		if op.Error != "" {
-			l.Logger.Error(fmt.Sprintf("failed to update rule: %s", op.Error))
+	// A platform that does not know the "*" acl_scopes entry refuses a rule
+	// listing it, naming the field. The rule without acl_scopes is what an
+	// extension installed before the entry existed, so install that instead
+	// of leaving the rule out. Any other failure is only reported: retrying it
+	// without acl_scopes would downgrade a rule that already has them.
+	batchRetry := h.NewBatch()
+	retried := []*limacharlie.BatchResponse{}
+	for i := range ops {
+		op := &ops[i]
+		if op.Error == "" {
+			continue
 		}
+		var set *setRuleOp
+		if len(ops) == len(batchOps) {
+			set = batchOps[i]
+		}
+		if set == nil || !isACLScopesRefusal(op.Error) {
+			l.Logger.Error(fmt.Sprintf("failed to update rule: %s", op.Error))
+			continue
+		}
+		withoutScopes, hasScopes := withoutACLScopes(set.mutation.Data)
+		if !hasScopes {
+			l.Logger.Error(fmt.Sprintf("failed to update rule: %s", op.Error))
+			continue
+		}
+		if set.isInstalledWithoutScopes {
+			l.Logger.Warn(fmt.Sprintf("rule %s was refused with %s (%s); leaving the installed rule as it is", set.record.Name, aclScopesKey, op.Error))
+			continue
+		}
+		l.Logger.Warn(fmt.Sprintf("rule %s was refused with %s (%s); installing it without, so it will not reach sensors restricted by a resource ACL", set.record.Name, aclScopesKey, op.Error))
+		set.mutation.Data = withoutScopes
+		batchRetry.SetRecord(set.record, set.mutation)
+		retried = append(retried, op)
+	}
+	retryOps, err := batchRetry.Execute()
+	if err != nil {
+		l.Logger.Error(fmt.Sprintf("failed to update rules without %s: %s", aclScopesKey, err.Error()))
+		return common.Response{Error: err.Error()}
+	}
+	for i, op := range retryOps {
+		if op.Error == "" {
+			continue
+		}
+		if i < len(retried) {
+			l.Logger.Error(fmt.Sprintf("failed to update rule: %s; and without %s: %s", retried[i].Error, aclScopesKey, op.Error))
+			continue
+		}
+		l.Logger.Error(fmt.Sprintf("failed to update rule: %s", op.Error))
 	}
 
 	l.Logger.Info("done updating rules")
@@ -453,14 +540,17 @@ func addSuppression(rule limacharlie.Dict, suppressionTime string) limacharlie.D
 }
 
 // Compares two dictionaries and their values for equality accounting for field order.
+// acl_scopes_author is set aside: the platform adds it to a stored rule whose
+// acl_scopes lists "*", so it is never a difference between the rule an
+// extension wants and the one in Hive.
 func areEqual(d1 limacharlie.Dict, d2 limacharlie.Dict) bool {
 	// The json lib will sort keys of maps when serializing (not structs).
 	// So we can just compare the serialized versions.
-	s1, err := json.Marshal(d1)
+	s1, err := json.Marshal(withoutACLScopesAuthor(d1))
 	if err != nil {
 		return false
 	}
-	s2, err := json.Marshal(d2)
+	s2, err := json.Marshal(withoutACLScopesAuthor(d2))
 	if err != nil {
 		return false
 	}

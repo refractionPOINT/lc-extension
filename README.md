@@ -74,6 +74,34 @@ In Go the block is exposed as `params.ACL` (a `common.ACLView`) on `RequestCallb
 
 `Allows` only ever restricts: use it in addition to your normal permission checks, never to grant access the org permissions would not already allow. The Python SDK exposes the same thing as `msg_request.acl` (an `lcextension.ACL` with `allows(tags)` and `present`), passed as an optional fifth argument to request handlers that declare one.
 
+### Resource ACLs and the Rules your Extension Installs
+If your Extension writes D&R rules into the organization, for example a rule that sends a sensor's reply back to one of your Actions or one that runs on a schedule, give those rules an `acl_scopes` list containing `*`, next to `detect` and `respond`:
+
+```yaml
+detect:
+  ...
+respond:
+  - action: extension request
+    extension name: my-extension
+    extension action: process
+    extension request: {}
+acl_scopes:
+  - '*'
+```
+
+On a sensor restricted by a resource ACL, the platform refuses `extension request`, `service request` and `start ai agent` unless the rule's `acl_scopes` covers the sensor's scopes. Your Extension cannot know an organization's scope names, so it lists `*`, which stands for the scopes your Extension's API key is a member of at the moment the rule fires. The organization's administrator decides what your Extension can reach by adding its key to a scope, or removing it.
+
+- Write these rules with the organization client your callbacks receive, so the rule's author is your Extension's key. `*` is only accepted from an org API key.
+- The platform adds an `acl_scopes_author` field to the stored rule. If you read your rules back and compare them with what you wrote, ignore that field.
+- Rules that only `report`, `task`, tag, etc. need no `acl_scopes`.
+
+In the Go `simplified` package:
+- The recurring update rule that `RuleExtension` and `LookupExtension` install lists `*`. One installed before this existed gets it on the next update.
+- The rules your `GetRules` callback returns are written as you supply them: add `acl_scopes` to the ones that use one of the three actions above. `acl_scopes_author` is ignored when a stored rule is compared with yours, so such a rule is not rewritten on every update.
+- A platform that does not know `*` yet refuses the rule with an error naming `acl_scopes`. The rule is then written without `acl_scopes`, with a warning, so your Extension keeps working as it did before (without reaching restricted sensors). No other failure is handled this way, in particular not `ACL_SCOPES_UNAVAILABLE`, which is temporary.
+
+The Python SDK has no helper that installs rules: a Python Extension that writes its own rules sets `acl_scopes` on them the same way.
+
 There are two types of opaque bits of data your Extension can leverage:
 1. Config
 1. Request
