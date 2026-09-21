@@ -252,7 +252,7 @@ func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbac
 	}
 
 	// A recurring update rule installed before acl_scopes existed gets them.
-	upgradeUpdateRule(h, l.Logger, params.Org.GetOID(), l.ruleName)
+	upgradeUpdateRule(h, l.Logger, params.Org.GetOID(), l.ruleName, updateRuleData(l.Name, "update_rules"))
 
 	return l.updateRules(ctx, hiveRuleStore{h}, params.Org.GetOID(), config)
 }

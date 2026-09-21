@@ -199,7 +199,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 	h := limacharlie.NewHiveClient(params.Org)
 
 	// A recurring update rule installed before acl_scopes existed gets them.
-	upgradeUpdateRule(h, l.Logger, params.Org.GetOID(), l.ruleName)
+	upgradeUpdateRule(h, l.Logger, params.Org.GetOID(), l.ruleName, updateRuleData(l.Name, "update_lookup"))
 
 	wg := sync.WaitGroup{}
 	lookups, err := l.GetLookup(ctx)

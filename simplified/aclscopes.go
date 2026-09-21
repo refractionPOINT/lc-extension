@@ -129,9 +129,16 @@ func addUpdateRule(h ruleAdder, logger limacharlie.LCLogger, args limacharlie.Hi
 // upgradeUpdateRule gives a recurring update rule installed before acl_scopes
 // existed its acl_scopes. It is called on every update, so a rule that already
 // has them costs one read and no write. A rule that is not there is left
-// alone: an extension may schedule its updates some other way. Everything else
-// about the rule is kept as found, including whether it is enabled.
-func upgradeUpdateRule(h ruleGetAdder, logger limacharlie.LCLogger, oid string, ruleName string) {
+// alone: an extension may schedule its updates some other way. Its usr_mtd is
+// kept as found, including whether it is enabled.
+//
+// canonical is what this extension asks the rule to be. A stored rule whose
+// content differs from it is left alone, and that is the point: the rule lives
+// in a hive the organization can edit, and removing acl_scopes is always
+// allowed, so writing back what is stored plus "*" would let anyone strip the
+// entry, edit detect or respond, and have the extension's key vouch for their
+// content on the next update. The extension only ever vouches for its own.
+func upgradeUpdateRule(h ruleGetAdder, logger limacharlie.LCLogger, oid string, ruleName string, canonical limacharlie.Dict) {
 	args := limacharlie.HiveArgs{
 		HiveName:     updateRuleHive,
 		PartitionKey: oid,
@@ -147,10 +154,12 @@ func upgradeUpdateRule(h ruleGetAdder, logger limacharlie.LCLogger, oid string, 
 	if rec.Data[aclScopesKey] != nil {
 		return
 	}
-	args.Data = limacharlie.Dict{aclScopesKey: []string{aclScopeRuleAuthor}}
-	for k, v := range rec.Data {
-		args.Data[k] = v
+	stored := limacharlie.Dict(rec.Data)
+	if withoutScopes, _ := withoutACLScopes(canonical); !areEqual(stored, withoutScopes) {
+		logger.Warn(fmt.Sprintf("rule %s differs from the one this extension installs; leaving it, and its resource ACL scopes, alone", ruleName))
+		return
 	}
+	args.Data = canonical
 	args.Enabled = &rec.UsrMtd.Enabled
 	args.Tags = rec.UsrMtd.Tags
 	args.Expiry = &rec.UsrMtd.Expiry

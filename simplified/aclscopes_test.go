@@ -215,13 +215,14 @@ func TestAddUpdateRuleFallsBackOnlyWhenACLScopesAreRefused(t *testing.T) {
 
 func TestUpgradeUpdateRule(t *testing.T) {
 	const ruleName = "ext-ext-test-update"
-	before, _ := withoutACLScopes(updateRuleData("ext-test", "update_rules"))
+	canonical := updateRuleData("ext-test", "update_rules")
+	before, _ := withoutACLScopes(canonical)
 
 	// Installed before acl_scopes existed, and turned off since.
 	installed := asStored(t, before)
 	installed.UsrMtd.Enabled = false
 	h := &fakeHive{stored: map[string]limacharlie.HiveData{ruleName: installed}}
-	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName)
+	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName, canonical)
 	if len(h.adds) != 1 {
 		t.Fatalf("expected the rule to be written once, got %d", len(h.adds))
 	}
@@ -238,7 +239,7 @@ func TestUpgradeUpdateRule(t *testing.T) {
 
 	// Already has them: nothing to write.
 	h = &fakeHive{stored: map[string]limacharlie.HiveData{ruleName: asStored(t, updateRuleData("ext-test", "update_rules"))}}
-	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName)
+	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName, canonical)
 	if len(h.adds) != 0 {
 		t.Errorf("expected no write, got %d", len(h.adds))
 	}
@@ -246,16 +247,52 @@ func TestUpgradeUpdateRule(t *testing.T) {
 	// Not installed (the extension schedules its updates some other way): not
 	// installed here either.
 	h = &fakeHive{}
-	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName)
+	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName, canonical)
 	if len(h.adds) != 0 {
 		t.Errorf("expected no write, got %d", len(h.adds))
 	}
 
 	// Refused: the installed rule is left alone.
 	h = &fakeHive{stored: map[string]limacharlie.HiveData{ruleName: asStored(t, before)}, refuse: refuseACLScopes}
-	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName)
+	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName, canonical)
 	if len(h.adds) != 1 {
 		t.Errorf("expected the one refused write, got %d", len(h.adds))
+	}
+
+	// Edited by the organization: left alone, scopes and all. The rule lives in
+	// a hive the organization can edit and removing acl_scopes is always
+	// allowed, so writing back what is stored plus the entry would have this
+	// extension's key vouch for whatever was put there.
+	edited := limacharlie.Dict{}
+	for k, v := range before {
+		edited[k] = v
+	}
+	edited["respond"] = []limacharlie.Dict{{
+		"action":            "extension request",
+		"extension name":    "somebody-elses-extension",
+		"extension action":  "run",
+		"extension request": limacharlie.Dict{},
+	}}
+	logger := &recordingLogger{}
+	h = &fakeHive{stored: map[string]limacharlie.HiveData{ruleName: asStored(t, edited)}}
+	upgradeUpdateRule(h, logger, "oid", ruleName, canonical)
+	if len(h.adds) != 0 {
+		t.Fatalf("an edited rule must not be written back with %s: wrote %v", aclScopesKey, h.adds)
+	}
+	if len(logger.warnings) == 0 {
+		t.Error("expected the skipped rule to be reported")
+	}
+
+	// What is written is the extension's own rule, not what was stored: a
+	// stored rule that only differs in a way areEqual ignores is still
+	// replaced by the canonical content.
+	h = &fakeHive{stored: map[string]limacharlie.HiveData{ruleName: asStored(t, before)}}
+	upgradeUpdateRule(h, &recordingLogger{}, "oid", ruleName, canonical)
+	if len(h.adds) != 1 {
+		t.Fatalf("expected one write, got %d", len(h.adds))
+	}
+	if !areEqual(h.adds[0].Data, canonical) {
+		t.Errorf("wrote %v, want the extension's own rule %v", h.adds[0].Data, canonical)
 	}
 }
 
