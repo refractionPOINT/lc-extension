@@ -19,3 +19,24 @@ def handlePing(self, sdk, data, conf, resState, acl=None):
 **Fail-closed default:** when the block is absent (older LimaCharlie extension manager), `acl.present` is `False`, `acl.scopes` is empty, `acl.is_global` is `False` and `acl.enforce` is `True`, so `allows()` returns `False` for any `acl:`-tagged resource and `True` for untagged ones.
 
 `allows()` only ever restricts: use it in addition to your normal permission checks, never to grant access the org permissions would not already allow.
+
+## Rules your extension installs, and resource ACLs
+
+If your extension writes D&R rules into the organization (with the `sdk` your handlers receive), and a rule uses the `extension request`, `service request` or `start ai agent` action, give it an `acl_scopes` list containing `*`, next to `detect` and `respond`:
+
+```python
+rule = {
+    'detect': {...},
+    'respond': [{
+        'action': 'extension request',
+        'extension name': 'my-extension',
+        'extension action': 'process',
+        'extension request': {},
+    }],
+    'acl_scopes': ['*'],
+}
+```
+
+On a sensor restricted by a resource ACL the platform refuses those three actions unless the rule's `acl_scopes` covers the sensor's scopes. `*` stands for the scopes your extension's API key is a member of at the moment the rule fires, so the organization's administrator decides what your extension can reach by adding its key to a scope, or removing it. `*` is only accepted from an org API key, which is what the `sdk` handed to your handlers uses.
+
+The platform adds an `acl_scopes_author` field to the stored rule: ignore it if you read your rules back and compare them with what you wrote.

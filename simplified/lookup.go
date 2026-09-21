@@ -82,26 +82,13 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				// We set up a D&R rule for recurring update.
 				h := limacharlie.NewHiveClient(org)
 				trueValue := true
-				if _, err := h.Add(limacharlie.HiveArgs{
+				if err := addUpdateRule(h, l.Logger, limacharlie.HiveArgs{
 					HiveName:     updateRuleHive,
 					PartitionKey: org.GetOID(),
 					Key:          l.ruleName,
-					Data: limacharlie.Dict{
-						"detect": limacharlie.Dict{
-							"target": "schedule",
-							"event":  "12h_per_org",
-							"op":     "exists",
-							"path":   "event",
-						},
-						"respond": []limacharlie.Dict{{
-							"action":            "extension request",
-							"extension name":    l.Name,
-							"extension action":  "update_lookup",
-							"extension request": limacharlie.Dict{},
-						}},
-					},
-					Tags:    []string{l.tag},
-					Enabled: &trueValue,
+					Data:         updateRuleData(l.Name, "update_lookup"),
+					Tags:         []string{l.tag},
+					Enabled:      &trueValue,
 				}); err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to add D&R rule: %s", err.Error()))
 					return common.Response{Error: err.Error()}
@@ -210,6 +197,9 @@ func asDict(v interface{}) (limacharlie.Dict, bool) {
 
 func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallbackParams) common.Response {
 	h := limacharlie.NewHiveClient(params.Org)
+
+	// A recurring update rule installed before acl_scopes existed gets them.
+	upgradeUpdateRule(h, l.Logger, params.Org.GetOID(), l.ruleName, updateRuleData(l.Name, "update_lookup"))
 
 	wg := sync.WaitGroup{}
 	lookups, err := l.GetLookup(ctx)
