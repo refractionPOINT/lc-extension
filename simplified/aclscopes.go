@@ -30,6 +30,8 @@ const (
 	aclScopeRuleAuthor = "*"
 	// aclScopesUnavailable is the error code of a write that can be retried.
 	aclScopesUnavailable = "ACL_SCOPES_UNAVAILABLE"
+	// ruleActionKey is the key naming a response action in a rule.
+	ruleActionKey = "action"
 )
 
 // ruleAdder is the part of the HiveClient used to install the recurring update
@@ -56,7 +58,7 @@ func updateRuleData(extensionName string, action string) limacharlie.Dict {
 			"path":   "event",
 		},
 		"respond": []limacharlie.Dict{{
-			"action":            "extension request",
+			ruleActionKey:       "extension request",
 			"extension name":    extensionName,
 			"extension action":  action,
 			"extension request": limacharlie.Dict{},

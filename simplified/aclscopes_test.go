@@ -9,6 +9,13 @@ import (
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 )
 
+const (
+	testEventKey               = "event"
+	testExtensionRequestAction = "extension request"
+	testExtensionTag           = "ext:ext-test"
+	testGatedRule              = "gated"
+)
+
 // recordingLogger keeps what was logged at the levels the tests look at.
 type recordingLogger struct {
 	limacharlie.LCLoggerEmpty
@@ -82,7 +89,7 @@ func (b *fakeBatch) DelRecord(record limacharlie.RecordID) {
 
 func (b *fakeBatch) Execute() ([]limacharlie.BatchResponse, error) {
 	b.h.batches = append(b.h.batches, b.ops)
-	responses := []limacharlie.BatchResponse{}
+	responses := make([]limacharlie.BatchResponse, 0, len(b.ops))
 	for _, op := range b.ops {
 		resp := limacharlie.BatchResponse{}
 		if !op.isDelete {
@@ -103,12 +110,12 @@ func refuseACLScopes(name string, data limacharlie.Dict) string {
 
 func gatedRule(withScopes bool) limacharlie.Dict {
 	rule := limacharlie.Dict{
-		"detect": limacharlie.Dict{"event": "NEW_PROCESS", "op": "exists", "path": "event"},
+		"detect": limacharlie.Dict{testEventKey: "NEW_PROCESS", "op": "exists", "path": testEventKey},
 		"respond": []limacharlie.Dict{{
-			"action":            "extension request",
-			"extension name":    "ext-test",
-			"extension action":  "scan",
-			"extension request": limacharlie.Dict{},
+			"action":                   testExtensionRequestAction,
+			"extension name":           "ext-test",
+			"extension action":         "scan",
+			testExtensionRequestAction: limacharlie.Dict{},
 		}},
 	}
 	if withScopes {
@@ -127,14 +134,14 @@ func asStored(t *testing.T, rule limacharlie.Dict) limacharlie.HiveData {
 	if _, ok := stored[aclScopesKey]; ok {
 		stored[aclScopesAuthorKey] = "ext-test-key"
 	}
-	return limacharlie.HiveData{Data: stored, UsrMtd: limacharlie.UsrMtd{Enabled: true, Tags: []string{"ext:ext-test"}}}
+	return limacharlie.HiveData{Data: stored, UsrMtd: limacharlie.UsrMtd{Enabled: true, Tags: []string{testExtensionTag}}}
 }
 
 func newTestRuleExtension(logger limacharlie.LCLogger, rules map[RuleName]RuleInfo) *RuleExtension {
 	return &RuleExtension{
 		Name:   "ext-test",
 		Logger: logger,
-		tag:    "ext:ext-test",
+		tag:    testExtensionTag,
 		GetRules: func(ctx context.Context) (RuleData, error) {
 			return RuleData{"general": rules}, nil
 		},
@@ -268,10 +275,10 @@ func TestUpgradeUpdateRule(t *testing.T) {
 		edited[k] = v
 	}
 	edited["respond"] = []limacharlie.Dict{{
-		"action":            "extension request",
-		"extension name":    "somebody-elses-extension",
-		"extension action":  "run",
-		"extension request": limacharlie.Dict{},
+		"action":                   testExtensionRequestAction,
+		"extension name":           "somebody-elses-extension",
+		"extension action":         "run",
+		testExtensionRequestAction: limacharlie.Dict{},
 	}}
 	logger := &recordingLogger{}
 	h = &fakeHive{stored: map[string]limacharlie.HiveData{ruleName: asStored(t, edited)}}
@@ -297,8 +304,8 @@ func TestUpgradeUpdateRule(t *testing.T) {
 }
 
 func TestUpdateRulesDoesNotRewriteRuleOverItsAuthor(t *testing.T) {
-	rules := map[RuleName]RuleInfo{"gated": {Data: gatedRule(true)}}
-	h := &fakeHive{stored: map[string]limacharlie.HiveData{"gated": asStored(t, gatedRule(true))}}
+	rules := map[RuleName]RuleInfo{testGatedRule: {Data: gatedRule(true)}}
+	h := &fakeHive{stored: map[string]limacharlie.HiveData{testGatedRule: asStored(t, gatedRule(true))}}
 	if resp := newTestRuleExtension(&recordingLogger{}, rules).updateRules(context.Background(), h, "oid", ruleConfig{}); resp.Error != "" {
 		t.Fatal(resp.Error)
 	}
@@ -310,23 +317,23 @@ func TestUpdateRulesDoesNotRewriteRuleOverItsAuthor(t *testing.T) {
 
 	// A real difference is still written.
 	changed := gatedRule(true)
-	changed["detect"] = limacharlie.Dict{"event": "DNS_REQUEST", "op": "exists", "path": "event"}
-	h = &fakeHive{stored: map[string]limacharlie.HiveData{"gated": asStored(t, changed)}}
+	changed["detect"] = limacharlie.Dict{testEventKey: "DNS_REQUEST", "op": "exists", "path": testEventKey}
+	h = &fakeHive{stored: map[string]limacharlie.HiveData{testGatedRule: asStored(t, changed)}}
 	newTestRuleExtension(&recordingLogger{}, rules).updateRules(context.Background(), h, "oid", ruleConfig{})
-	if len(h.batches) == 0 || len(h.batches[0]) != 1 || h.batches[0][0].name != "gated" {
+	if len(h.batches) == 0 || len(h.batches[0]) != 1 || h.batches[0][0].name != testGatedRule {
 		t.Errorf("expected the changed rule to be written, got %v", h.batches)
 	}
 }
 
 func TestUpdateRulesWritesRulesAsSupplied(t *testing.T) {
-	rules := map[RuleName]RuleInfo{"gated": {Data: gatedRule(true)}, "plain": {Data: gatedRule(false)}}
+	rules := map[RuleName]RuleInfo{testGatedRule: {Data: gatedRule(true)}, "plain": {Data: gatedRule(false)}}
 	h := &fakeHive{}
 	newTestRuleExtension(&recordingLogger{}, rules).updateRules(context.Background(), h, "oid", ruleConfig{})
 	if len(h.batches) == 0 || len(h.batches[0]) != 2 {
 		t.Fatalf("expected both rules to be written, got %v", h.batches)
 	}
 	for _, op := range h.batches[0] {
-		if _, hasScopes := op.data[aclScopesKey]; hasScopes != (op.name == "gated") {
+		if _, hasScopes := op.data[aclScopesKey]; hasScopes != (op.name == testGatedRule) {
 			t.Errorf("rule %s was not written as supplied: %v", op.name, op.data)
 		}
 	}
@@ -334,14 +341,14 @@ func TestUpdateRulesWritesRulesAsSupplied(t *testing.T) {
 
 func TestUpdateRulesRetriesOnlyRulesRefusedForTheirACLScopes(t *testing.T) {
 	rules := map[RuleName]RuleInfo{
-		"gated":  {Data: gatedRule(true)},
-		"broken": {Data: gatedRule(true)},
-		"plain":  {Data: gatedRule(false)},
+		testGatedRule: {Data: gatedRule(true)},
+		"broken":      {Data: gatedRule(true)},
+		"plain":       {Data: gatedRule(false)},
 	}
 	logger := &recordingLogger{}
 	h := &fakeHive{
 		// "gone" is removed by the update, so the batch mixes removals and writes.
-		stored: map[string]limacharlie.HiveData{"gone": {UsrMtd: limacharlie.UsrMtd{Tags: []string{"ext:ext-test"}}}},
+		stored: map[string]limacharlie.HiveData{"gone": {UsrMtd: limacharlie.UsrMtd{Tags: []string{testExtensionTag}}}},
 		refuse: func(name string, data limacharlie.Dict) string {
 			if name == "broken" {
 				return "503 service unavailable"
@@ -355,13 +362,13 @@ func TestUpdateRulesRetriesOnlyRulesRefusedForTheirACLScopes(t *testing.T) {
 		t.Fatalf("expected a second batch, got %d", len(h.batches))
 	}
 	retry := h.batches[1]
-	if len(retry) != 1 || retry[0].name != "gated" {
+	if len(retry) != 1 || retry[0].name != testGatedRule {
 		t.Fatalf("expected only the rule refused for its %s to be written again, got %v", aclScopesKey, retry)
 	}
 	if _, ok := retry[0].data[aclScopesKey]; ok || retry[0].data["detect"] == nil || retry[0].data["respond"] == nil {
 		t.Errorf("expected the same rule without %s, got %v", aclScopesKey, retry[0].data)
 	}
-	if len(logger.warnings) != 1 || !strings.Contains(logger.warnings[0], "gated") {
+	if len(logger.warnings) != 1 || !strings.Contains(logger.warnings[0], testGatedRule) {
 		t.Errorf("expected a warning about the rule, got %v", logger.warnings)
 	}
 	if len(logger.errors) != 1 || !strings.Contains(logger.errors[0], "503") {
@@ -370,9 +377,9 @@ func TestUpdateRulesRetriesOnlyRulesRefusedForTheirACLScopes(t *testing.T) {
 }
 
 func TestUpdateRulesLeavesRuleAlreadyInstalledWithoutACLScopes(t *testing.T) {
-	rules := map[RuleName]RuleInfo{"gated": {Data: gatedRule(true)}}
+	rules := map[RuleName]RuleInfo{testGatedRule: {Data: gatedRule(true)}}
 	h := &fakeHive{
-		stored: map[string]limacharlie.HiveData{"gated": asStored(t, gatedRule(false))},
+		stored: map[string]limacharlie.HiveData{testGatedRule: asStored(t, gatedRule(false))},
 		refuse: refuseACLScopes,
 	}
 	newTestRuleExtension(&recordingLogger{}, rules).updateRules(context.Background(), h, "oid", ruleConfig{})
@@ -384,7 +391,7 @@ func TestUpdateRulesLeavesRuleAlreadyInstalledWithoutACLScopes(t *testing.T) {
 }
 
 func TestUpdateRulesReportsBothErrorsWhenTheFallbackFails(t *testing.T) {
-	rules := map[RuleName]RuleInfo{"gated": {Data: gatedRule(true)}}
+	rules := map[RuleName]RuleInfo{testGatedRule: {Data: gatedRule(true)}}
 	logger := &recordingLogger{}
 	h := &fakeHive{refuse: func(name string, data limacharlie.Dict) string {
 		if _, ok := data[aclScopesKey]; ok {

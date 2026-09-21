@@ -290,7 +290,6 @@ type setRuleOp struct {
 }
 
 func (l *RuleExtension) updateRules(ctx context.Context, h ruleStore, oid string, config ruleConfig) common.Response {
-
 	rulesData, err := l.GetRules(ctx)
 	if err != nil {
 		return common.Response{Error: err.Error()}
