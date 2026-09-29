@@ -12,6 +12,11 @@ import (
 // The rule that issued a request is platform-set data: the handler must see it, and it must survive
 // being re-wrapped for another extension (the multiplexer), or a forwarded action would silently lose
 // the attribution it was sent with.
+const (
+	automationTestRule = "general.rule"
+	automationTestJWT  = "jwt"
+)
+
 func TestRequestHandlerReceivesAutomationRule(t *testing.T) {
 	ext, ms := newTestExtension(t)
 	defer ms.Close()
@@ -20,21 +25,21 @@ func TestRequestHandlerReceivesAutomationRule(t *testing.T) {
 		Version:        PROTOCOL_VERSION,
 		IdempotencyKey: testIdem,
 		Request: &common.RequestMessage{
-			Org:            common.OrgAccessData{OID: "oid-test", JWT: "jwt", Ident: "DR:general.rule"},
+			Org:            common.OrgAccessData{OID: "oid-test", JWT: automationTestJWT, Ident: "DR:" + automationTestRule},
 			Action:         testAction,
 			Data:           limacharlie.Dict{"automation_rule": "forged"}, // user-controlled, must be ignored
 			Config:         limacharlie.Dict{},
-			AutomationRule: "general.rule",
+			AutomationRule: automationTestRule,
 		},
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
-	if params.AutomationRule != "general.rule" {
+	if params.AutomationRule != automationTestRule {
 		t.Fatalf("AutomationRule = %q, want the platform-set value", params.AutomationRule)
 	}
 	fwd := params.ToRequestMessage("other", common.OrgAccessData{OID: "oid-test"})
-	if fwd.AutomationRule != "general.rule" {
+	if fwd.AutomationRule != automationTestRule {
 		t.Fatalf("forwarded AutomationRule = %q, want it carried over", fwd.AutomationRule)
 	}
 
@@ -42,7 +47,7 @@ func TestRequestHandlerReceivesAutomationRule(t *testing.T) {
 		Version:        PROTOCOL_VERSION,
 		IdempotencyKey: testIdem,
 		Request: &common.RequestMessage{
-			Org:    common.OrgAccessData{OID: "oid-test", JWT: "jwt", Ident: testIdent},
+			Org:    common.OrgAccessData{OID: "oid-test", JWT: automationTestJWT, Ident: testIdent},
 			Action: testAction,
 			Data:   limacharlie.Dict{"automation_rule": "forged"},
 			Config: limacharlie.Dict{},
