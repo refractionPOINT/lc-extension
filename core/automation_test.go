@@ -15,6 +15,7 @@ import (
 const (
 	automationTestRule = "general.rule"
 	automationTestJWT  = "jwt"
+	automationTestOID  = "oid-automation"
 )
 
 func TestRequestHandlerReceivesAutomationRule(t *testing.T) {
@@ -25,7 +26,7 @@ func TestRequestHandlerReceivesAutomationRule(t *testing.T) {
 		Version:        PROTOCOL_VERSION,
 		IdempotencyKey: testIdem,
 		Request: &common.RequestMessage{
-			Org:            common.OrgAccessData{OID: "oid-test", JWT: automationTestJWT, Ident: "DR:" + automationTestRule},
+			Org:            common.OrgAccessData{OID: automationTestOID, JWT: automationTestJWT, Ident: "DR:" + automationTestRule},
 			Action:         testAction,
 			Data:           limacharlie.Dict{"automation_rule": "forged"}, // user-controlled, must be ignored
 			Config:         limacharlie.Dict{},
@@ -38,7 +39,7 @@ func TestRequestHandlerReceivesAutomationRule(t *testing.T) {
 	if params.AutomationRule != automationTestRule {
 		t.Fatalf("AutomationRule = %q, want the platform-set value", params.AutomationRule)
 	}
-	fwd := params.ToRequestMessage("other", common.OrgAccessData{OID: "oid-test"})
+	fwd := params.ToRequestMessage("other", common.OrgAccessData{OID: automationTestOID})
 	if fwd.AutomationRule != automationTestRule {
 		t.Fatalf("forwarded AutomationRule = %q, want it carried over", fwd.AutomationRule)
 	}
@@ -47,7 +48,7 @@ func TestRequestHandlerReceivesAutomationRule(t *testing.T) {
 		Version:        PROTOCOL_VERSION,
 		IdempotencyKey: testIdem,
 		Request: &common.RequestMessage{
-			Org:    common.OrgAccessData{OID: "oid-test", JWT: automationTestJWT, Ident: testIdent},
+			Org:    common.OrgAccessData{OID: automationTestOID, JWT: automationTestJWT, Ident: testIdent},
 			Action: testAction,
 			Data:   limacharlie.Dict{"automation_rule": "forged"},
 			Config: limacharlie.Dict{},
