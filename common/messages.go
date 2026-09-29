@@ -77,6 +77,12 @@ type RequestMessage struct {
 	// It is absent when the sending LimaCharlie extension manager predates
 	// resource ACLs; see ACLView for how the SDK treats that case.
 	ACL *ACL `json:"acl,omitempty" msgpack:"acl,omitempty"`
+	// AutomationRule is set by the platform (never by the user) when the request was issued by a D&R
+	// rule of the organization and the action is one that allows automation (RequestSchema.AllowAutomation).
+	// It is the rule's name as the D&R engine reported it, without the "DR:" prefix. When it is set, the
+	// credential in Org.JWT is the extension's own; when it is empty on an impersonated action, Org.JWT is
+	// the caller's.
+	AutomationRule string `json:"automation_rule,omitempty" msgpack:"automation_rule,omitempty"`
 }
 
 type ResourceState struct {

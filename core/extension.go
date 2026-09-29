@@ -68,6 +68,10 @@ type RequestCallbackParams struct {
 	// ACL block, ACL.Present() is false and the view fails closed (see
 	// common.ACLView).
 	ACL common.ACLView
+	// AutomationRule is the name of the D&R rule that issued this request, set by the platform only for an
+	// action declared with AllowAutomation. Empty for a request from a person or an API key, whose
+	// credential is then Org's (an impersonated action) and whose identity is Ident.
+	AutomationRule string
 }
 
 type RequestCallback struct {
@@ -201,6 +205,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ResourceState:   message.Request.ResourceState,
 			InvestigationID: message.Request.InvestigationID,
 			ACL:             common.NewACLView(message.Request.ACL),
+			AutomationRule:  message.Request.AutomationRule,
 		})
 	} else if message.ErrorReport != nil {
 		e.Callbacks.ErrorHandler(message.ErrorReport)
@@ -332,6 +337,7 @@ func (p RequestCallbackParams) ToRequestMessage(action common.ActionName, org co
 		ResourceState:   p.ResourceState,
 		InvestigationID: p.InvestigationID,
 		ACL:             p.ACL.Envelope(),
+		AutomationRule:  p.AutomationRule,
 	}
 }
 

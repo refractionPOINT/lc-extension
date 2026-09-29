@@ -18,15 +18,22 @@ type StatusMessages struct {
 
 // Shema of expected Parameters for a specific request Action.
 type RequestSchema struct {
-	IsDefaultRequest     bool           `json:"is_default,omitempty" msgpack:"is_default,omitempty"` // Is the default Request when displaying the state of the Extension.
-	Label                Label          `json:"label,omitempty" msgpack:"label,omitempty"`           // (optional) Human friendly name for the request
-	IsUserFacing         bool           `json:"is_user_facing" msgpack:"is_user_facing"`             // Is this Action expected to be performed by a human, or is it for automation.
-	ShortDescription     string         `json:"short_description" msgpack:"short_description"`       // Short description of what this Action does.
-	LongDescription      string         `json:"long_description" msgpack:"long_description"`         // Longer version of the Short Description.
-	Messages             StatusMessages `json:"messages,omitempty" msgpack:"messages,omitempty"`     // (optional) Customizable text to inform the user
-	IsImpersonated       bool           `json:"is_impersonated" msgpack:"is_impersonated"`           // If true, this action requires a JWT token from a user that it will use to impersonate.
-	ParameterDefinitions SchemaObject   `json:"parameters" msgpack:"parameters"`                     // List of Parameter Names and their definition.
-	ResponseDefinition   *SchemaObject  `json:"response" msgpack:"response"`                         // Schema of the expected Response.
+	IsDefaultRequest bool           `json:"is_default,omitempty" msgpack:"is_default,omitempty"` // Is the default Request when displaying the state of the Extension.
+	Label            Label          `json:"label,omitempty" msgpack:"label,omitempty"`           // (optional) Human friendly name for the request
+	IsUserFacing     bool           `json:"is_user_facing" msgpack:"is_user_facing"`             // Is this Action expected to be performed by a human, or is it for automation.
+	ShortDescription string         `json:"short_description" msgpack:"short_description"`       // Short description of what this Action does.
+	LongDescription  string         `json:"long_description" msgpack:"long_description"`         // Longer version of the Short Description.
+	Messages         StatusMessages `json:"messages,omitempty" msgpack:"messages,omitempty"`     // (optional) Customizable text to inform the user
+	IsImpersonated   bool           `json:"is_impersonated" msgpack:"is_impersonated"`           // If true, this action requires a JWT token from a user that it will use to impersonate.
+	// AllowAutomation only has a meaning together with IsImpersonated. An impersonated action normally
+	// refuses a request that carries no user JWT, which is every request from a D&R rule. With this set,
+	// the extension manager also accepts a request that comes from a D&R rule of the organization (a
+	// verified in-cluster origin, never a caller-supplied field): the action then runs with the
+	// extension's own credential, and the request carries the rule's name in RequestMessage.AutomationRule.
+	// A request from a person or an API key is unaffected: it still has to bring the JWT it acts with.
+	AllowAutomation      bool          `json:"allow_automation,omitempty" msgpack:"allow_automation,omitempty"`
+	ParameterDefinitions SchemaObject  `json:"parameters" msgpack:"parameters"` // List of Parameter Names and their definition.
+	ResponseDefinition   *SchemaObject `json:"response" msgpack:"response"`     // Schema of the expected Response.
 }
 
 // Strongly typed list of Parameter Data Types.
