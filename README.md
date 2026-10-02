@@ -36,7 +36,7 @@ The main lifecycle of an Extension looks like this:
 ## Building
 The best way to get started is from the [Basic Example](https://github.com/refractionPOINT/lc-extension/blob/master/examples/basic/main.go).
 
-This example demonstrates the basic schaffolding necessary for the Extension and implements a single action `ping`.
+This example demonstrates the basic scaffolding necessary for the Extension and implements a single action `ping`.
 
 The main mechanism where you'll implement functionality is within callbacks. These callbacks will receive several bits of data allowing you to do your thing:
 - Config: this is a dictionary that is stored in LimaCharlie's Hive system. It allows you to support basic configurations for your Extension without having to provision and manage storage.
