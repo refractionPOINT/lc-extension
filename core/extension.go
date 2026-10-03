@@ -139,14 +139,14 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if status == http.StatusUnauthorized {
 			response.Error = "invalid signature"
 			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
-			e.respondAndLog(w, status, nil) //nolint:errcheck
+			_ = e.respondAndLog(w, status, nil)
 			return
 		}
 		// A refusal for size is decided before the sender is authenticated, so
 		// it is not reported through ErrorHandler: that would let anyone
 		// generate reports.
 		response.Error = err.Error()
-		e.respondAndLog(w, status, &response) //nolint:errcheck
+		_ = e.respondAndLog(w, status, &response)
 		return
 	}
 
@@ -348,7 +348,7 @@ func (e *Extension) readSignedBody(w http.ResponseWriter, r *http.Request, signa
 	}
 	mac := hmac.New(sha256.New, []byte(e.SecretKey))
 	n, err := io.Copy(mac, io.LimitReader(zr, decodedLimit+1))
-	zr.Close()
+	_ = zr.Close()
 	if n > decodedLimit {
 		return nil, http.StatusRequestEntityTooLarge, fmt.Errorf("%w: limit is %d bytes once decompressed", errBodyTooLarge, decodedLimit)
 	}
@@ -364,7 +364,7 @@ func (e *Extension) readSignedBody(w http.ResponseWriter, r *http.Request, signa
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	decoded, err := io.ReadAll(io.LimitReader(zr, decodedLimit+1))
 	if err != nil {
 		return nil, http.StatusBadRequest, fmt.Errorf("failed decompressing body: %v", err)

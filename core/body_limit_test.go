@@ -19,6 +19,8 @@ import (
 	"github.com/refractionPOINT/lc-extension/common"
 )
 
+const encGzip = "gzip"
+
 func sign(body []byte) string {
 	mac := hmac.New(sha256.New, []byte(testSecret))
 	mac.Write(body)
@@ -42,7 +44,7 @@ func post(ext *Extension, body []byte, sig string, gzipped bool) *httptest.Respo
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set("lc-ext-sig", sig)
 	if gzipped {
-		req.Header.Set("Content-Encoding", "gzip")
+		req.Header.Set("Content-Encoding", encGzip)
 	}
 	rec := httptest.NewRecorder()
 	ext.ServeHTTP(rec, req)
@@ -55,7 +57,7 @@ func pingMessage(t *testing.T) []byte {
 		Version:        PROTOCOL_VERSION,
 		IdempotencyKey: testIdem,
 		Request: &common.RequestMessage{
-			Org:    common.OrgAccessData{OID: "oid", JWT: "jwt", Ident: testIdent},
+			Org:    common.OrgAccessData{OID: "oid", JWT: automationTestJWT, Ident: testIdent},
 			Action: testAction,
 			Data:   limacharlie.Dict{"k": "v"},
 			Config: limacharlie.Dict{},
@@ -82,7 +84,7 @@ func newPingExtension(t *testing.T, calls *int) (*Extension, func()) {
 // A valid signed request still goes through, gzipped (what the platform sends) or not, at default limits.
 func TestSignedRequestStillAccepted(t *testing.T) {
 	msg := pingMessage(t)
-	for name, gzipped := range map[string]bool{"gzip": true, "plain": false} {
+	for name, gzipped := range map[string]bool{encGzip: true, "plain": false} {
 		t.Run(name, func(t *testing.T) {
 			calls := 0
 			ext, done := newPingExtension(t, &calls)
@@ -146,7 +148,7 @@ func TestDecompressedBodyCapBoundary(t *testing.T) {
 // An oversize body is refused on the wire cap, declared (Content-Length) or not, before any decoding.
 func TestOversizeWireBodyRefused(t *testing.T) {
 	msg := pingMessage(t)
-	for name, gzipped := range map[string]bool{"gzip": true, "plain": false} {
+	for name, gzipped := range map[string]bool{encGzip: true, "plain": false} {
 		t.Run(name, func(t *testing.T) {
 			calls := 0
 			ext, done := newPingExtension(t, &calls)
@@ -172,7 +174,7 @@ func TestOversizeWireBodyRefused(t *testing.T) {
 			req.ContentLength = -1
 			req.Header.Set("lc-ext-sig", sign(msg))
 			if gzipped {
-				req.Header.Set("Content-Encoding", "gzip")
+				req.Header.Set("Content-Encoding", encGzip)
 			}
 			rec := httptest.NewRecorder()
 			ext.ServeHTTP(rec, req)
@@ -221,7 +223,7 @@ func TestGzipBombDoesNotAllocateDecodedSize(t *testing.T) {
 
 func TestBadSignatureStillRejected(t *testing.T) {
 	msg := pingMessage(t)
-	for name, gzipped := range map[string]bool{"gzip": true, "plain": false} {
+	for name, gzipped := range map[string]bool{encGzip: true, "plain": false} {
 		t.Run(name, func(t *testing.T) {
 			calls := 0
 			ext, done := newPingExtension(t, &calls)
