@@ -1,6 +1,6 @@
 import limacharlie
 import flask
-import gzip
+import zlib
 import json
 import hmac
 import hashlib
@@ -29,11 +29,78 @@ def _acceptsACLArgument(handler: Callable[..., Any]) -> bool:
             nPositional += 1
     return nPositional >= 5
 
+# Default cap on the request body as it arrives on the wire (compressed size when
+# gzipped). The platform's request entry point accepts at most a 10 MiB form field and
+# a sender compresses what it sends, so 16 MiB leaves room for the envelope (config,
+# event data) around the largest payload.
+DEFAULT_MAX_BODY_BYTES = 16 << 20
+# Default cap on the request body once decompressed (also applies to a body that is
+# not compressed). A gzip stream can expand by orders of magnitude, so this is what
+# bounds the memory one request can make the extension allocate.
+DEFAULT_MAX_DECODED_BODY_BYTES = 64 << 20
+
+class _BodyTooLarge(Exception):
+    pass
+
+class _BadBody(Exception):
+    pass
+
+def _gunzipChunks(raw: bytes, limit: int):
+    '''Yield the decompressed content of a (possibly multi-member) gzip stream in
+    bounded chunks, raising _BodyTooLarge as soon as more than limit bytes would be
+    produced, so a small body that expands hugely never gets materialised.'''
+    if not raw:
+        raise _BadBody("empty gzip body")
+    total = 0
+    pending = raw
+    chunkSize = 1 << 16
+    while pending:
+        d = zlib.decompressobj(wbits = 16 + zlib.MAX_WBITS)
+        try:
+            chunk = d.decompress(pending, chunkSize)
+            while True:
+                total += len(chunk)
+                if total > limit:
+                    raise _BodyTooLarge()
+                if chunk:
+                    yield chunk
+                if d.eof:
+                    break
+                tail = d.unconsumed_tail
+                if not chunk and not tail:
+                    # No output and no input left, yet the member has not ended.
+                    raise _BadBody("truncated gzip body")
+                chunk = d.decompress(tail, chunkSize)
+        except zlib.error as e:
+            raise _BadBody(f"invalid gzip body: {e}")
+        pending = d.unused_data
+
+def _readBounded(stream, limit: int) -> bytes:
+    '''Read a stream to EOF, raising _BodyTooLarge as soon as more than limit bytes
+    are seen. A WSGI stream may return fewer bytes than asked for before EOF, so a
+    single read(limit + 1) could truncate a legitimate body: read until it returns
+    nothing.'''
+    parts = []
+    total = 0
+    while True:
+        chunk = stream.read(min(1 << 16, limit + 1 - total))
+        if not chunk:
+            return b"".join(parts)
+        total += len(chunk)
+        if total > limit:
+            raise _BodyTooLarge()
+        parts.append(chunk)
+
 class Extension(object):
     
-    def __init__(self, name: str, secret: str):
+    def __init__(self, name: str, secret: str, max_body_bytes: int = DEFAULT_MAX_BODY_BYTES, max_decoded_body_bytes: int = DEFAULT_MAX_DECODED_BODY_BYTES):
         self._name: str = name
         self._secret: str = secret
+        # Caps on the request body (wire size, and size once decompressed), enforced
+        # before the signature is checked. Keep them as low as the largest request the
+        # extension legitimately receives.
+        self._maxBodyBytes: int = max_body_bytes if max_body_bytes > 0 else DEFAULT_MAX_BODY_BYTES
+        self._maxDecodedBodyBytes: int = max_decoded_body_bytes if max_decoded_body_bytes > 0 else DEFAULT_MAX_DECODED_BODY_BYTES
         self._lock: threading.Lock = threading.Lock()
         self.viewSchemas: List[SchemaView] = []
         self.configSchema: SchemaObject = SchemaObject()
@@ -53,12 +120,15 @@ class Extension(object):
             sig = flask.request.headers.get('lc-ext-sig', None)
             if not sig:
                 return json.dumps({}), 200
-            data = flask.request.get_data()
-            if flask.request.headers.get('Content-Encoding', '') == 'gzip':
-                data = gzip.decompress(data)
+            try:
+                data, isVerified = self._readBody(sig)
+            except _BodyTooLarge:
+                return json.dumps(Response(error = "request body too large").toJSON()), 413
+            except _BadBody as e:
+                return json.dumps(Response(error = str(e)).toJSON()), 400
             if self._isLogRequest:
                 self.log(f"request: {data}")
-            if not self._verifyOrigin(data, sig):
+            if not isVerified:
                 resp = json.dumps(Response(error = "invalid signature").toJSON())
                 return resp, 401
             try:
@@ -87,6 +157,34 @@ class Extension(object):
 
     def getApp(self) -> flask.Flask:
         return self._app
+
+    def _readBody(self, signature: str) -> tuple:
+        '''Read the request body, bounded, and return (decoded body, signature ok).
+
+        The body is untrusted until the signature is verified, so what is held in memory
+        is bounded by the caps before authentication rather than by what the sender chose
+        to send: the wire body is capped; a gzip body is first decompressed straight into
+        the signature check (nothing retained, itself capped) and is only materialised
+        once the signature matched.'''
+        isGzip = flask.request.headers.get('Content-Encoding', '') == 'gzip'
+        # An uncompressed body is its own decoded form.
+        wireLimit = self._maxBodyBytes if isGzip else self._maxDecodedBodyBytes
+        declared = flask.request.content_length
+        if declared is not None and declared > wireLimit:
+            raise _BodyTooLarge()
+        raw = _readBounded(flask.request.stream, wireLimit)
+        if not isGzip:
+            return raw, self._verifyOrigin(raw, signature)
+        if self._secret is None:
+            return b"".join(_gunzipChunks(raw, self._maxDecodedBodyBytes)), True
+        mac = hmac.new(self._secret.encode(), digestmod = hashlib.sha256)
+        for chunk in _gunzipChunks(raw, self._maxDecodedBodyBytes):
+            mac.update(chunk)
+        if isinstance(signature, bytes):
+            signature = signature.decode()
+        if not hmac.compare_digest(mac.hexdigest(), signature):
+            return b"", False
+        return b"".join(_gunzipChunks(raw, self._maxDecodedBodyBytes)), True
 
     def _verifyOrigin(self, data: Union[str, bytes], signature: Union[str, bytes]) -> bool:
         if self._secret is None:
