@@ -75,6 +75,22 @@ def _gunzipChunks(raw: bytes, limit: int):
             raise _BadBody(f"invalid gzip body: {e}")
         pending = d.unused_data
 
+def _readBounded(stream, limit: int) -> bytes:
+    '''Read a stream to EOF, raising _BodyTooLarge as soon as more than limit bytes
+    are seen. A WSGI stream may return fewer bytes than asked for before EOF, so a
+    single read(limit + 1) could truncate a legitimate body: read until it returns
+    nothing.'''
+    parts = []
+    total = 0
+    while True:
+        chunk = stream.read(min(1 << 16, limit + 1 - total))
+        if not chunk:
+            return b"".join(parts)
+        total += len(chunk)
+        if total > limit:
+            raise _BodyTooLarge()
+        parts.append(chunk)
+
 class Extension(object):
     
     def __init__(self, name: str, secret: str, max_body_bytes: int = DEFAULT_MAX_BODY_BYTES, max_decoded_body_bytes: int = DEFAULT_MAX_DECODED_BODY_BYTES):
@@ -156,9 +172,7 @@ class Extension(object):
         declared = flask.request.content_length
         if declared is not None and declared > wireLimit:
             raise _BodyTooLarge()
-        raw = flask.request.stream.read(wireLimit + 1)
-        if len(raw) > wireLimit:
-            raise _BodyTooLarge()
+        raw = _readBounded(flask.request.stream, wireLimit)
         if not isGzip:
             return raw, self._verifyOrigin(raw, signature)
         if self._secret is None:

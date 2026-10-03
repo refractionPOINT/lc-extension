@@ -1,6 +1,7 @@
 import gzip
 import hashlib
 import hmac
+import io
 import json
 import os
 import sys
@@ -42,6 +43,25 @@ def post(client, body, sig, gzipped=True):
     return client.post('/', data=body, headers=headers)
 
 
+class ShortReadStream(io.BytesIO):
+    '''A WSGI input that, like a socket-backed one, returns fewer bytes than asked for
+    before EOF.'''
+    def __init__(self, data: bytes, chunk: int = 7):
+        super().__init__(data)
+        self._chunk = chunk
+
+    def read(self, size: int = -1) -> bytes:
+        n = self._chunk if size is None or size < 0 else min(size, self._chunk)
+        return super().read(n)
+
+
+def postStreamed(client, body, headers, chunk=7):
+    '''POST with no Content-Length (as a chunked request, which the server terminates), so the
+    handler reads the raw input stream, which here returns short reads.'''
+    environ = {'wsgi.input_terminated': True, 'CONTENT_LENGTH': ''}
+    return client.post('/', input_stream=ShortReadStream(body, chunk), headers=headers, environ_overrides=environ)
+
+
 def gzipZeros(n: int) -> bytes:
     c = zlib.compressobj(9, zlib.DEFLATED, 31)
     chunk = b'\0' * (1 << 20)
@@ -59,6 +79,22 @@ class TestBodyLimit(unittest.TestCase):
             with self.subTest(name):
                 r = post(newClient(), body, sign(msg), gzipped)
                 self.assertEqual(r.status_code, 200, r.data)
+
+    def test_short_reads_do_not_truncate_the_body(self):
+        msg = heartbeat()
+        for name, body, gzipped in (('gzip', gzip.compress(msg), True), ('plain', msg, False)):
+            with self.subTest(name):
+                headers = {'lc-ext-sig': sign(msg)}
+                if gzipped:
+                    headers['Content-Encoding'] = 'gzip'
+                r = postStreamed(newClient(), body, headers)
+                self.assertEqual(r.status_code, 200, r.data)
+
+    def test_oversize_body_of_unknown_length_refused(self):
+        junk = os.urandom(8192)
+        c = newClient(max_body_bytes=1024, max_decoded_body_bytes=1024)
+        r = postStreamed(c, junk, {'lc-ext-sig': sign(junk), 'Content-Encoding': 'gzip'}, 100)
+        self.assertEqual(r.status_code, 413)
 
     def test_multi_member_gzip_accepted(self):
         msg = heartbeat()
