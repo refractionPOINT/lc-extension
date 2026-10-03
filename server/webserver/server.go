@@ -13,6 +13,34 @@ import (
 	"time"
 )
 
+// Timeouts of the HTTP server. They bound how long a connection can be held
+// open by a peer that is slow, or that stops, sending or reading, which on a
+// service reachable by anyone is otherwise unbounded.
+//
+// They are sized from the longest legitimate exchange rather than from typical
+// ones: the extension manager gives up on a request after 2 minutes, so a
+// request is fully read well within ReadTimeout; WriteTimeout covers the
+// handler's run plus the response and is above the longest request timeout
+// extensions are deployed with (15 minutes), so it never cuts a handler the
+// platform is still waiting on.
+const (
+	readTimeout       = 2 * time.Minute
+	writeTimeout      = 15 * time.Minute
+	idleTimeout       = 620 * time.Second // above the 10 minutes a Google load balancer keeps an upstream connection
+	readHeaderTimeout = 5 * time.Second
+)
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+}
+
 func RunExtension(extension http.Handler) {
 	port := 80
 	if p := os.Getenv("PORT"); p != "" {
@@ -22,11 +50,7 @@ func RunExtension(extension http.Handler) {
 		}
 		port = int(p)
 	}
-	srv := &http.Server{
-		Addr:              fmt.Sprintf(":%d", port),
-		Handler:           extension,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	srv := newServer(fmt.Sprintf(":%d", port), extension)
 
 	wgServerClosed := sync.WaitGroup{}
 

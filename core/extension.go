@@ -1,12 +1,14 @@
 package core
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +22,23 @@ import (
 
 //revive:disable:var-naming
 const PROTOCOL_VERSION = 20221218
+
+const (
+	// DefaultMaxBodyBytes is the default cap on the request body as it
+	// arrives on the wire (the compressed size when the body is gzipped).
+	// The platform's request entry point accepts at most a 10 MiB form
+	// field, and a sender compresses what it sends, so 16 MiB leaves room
+	// for the envelope (config, event data) around the largest payload.
+	DefaultMaxBodyBytes int64 = 16 << 20
+	// DefaultMaxDecodedBodyBytes is the default cap on the request body
+	// once decompressed. A gzip stream can expand by orders of magnitude, so
+	// this is what bounds the memory one request can make the extension
+	// allocate. It also applies to a body that is not compressed.
+	DefaultMaxDecodedBodyBytes int64 = 64 << 20
+)
+
+// errBodyTooLarge reports a request body over one of the configured caps.
+var errBodyTooLarge = errors.New("request body too large")
 
 type Extension struct {
 	ExtensionName string
@@ -35,6 +54,15 @@ type Extension struct {
 	// OrgAccessData. If nil, the default NewOrganizationFromClientOptions
 	// is used. This is primarily useful for testing with mock servers.
 	OrgFromAccess func(common.OrgAccessData) (*limacharlie.Organization, error)
+
+	// MaxBodyBytes caps the request body as received on the wire (before
+	// any decompression). Zero means DefaultMaxBodyBytes. Requests over it
+	// are refused with 413 before the signature is checked, so keep it as
+	// low as the largest request the extension legitimately receives.
+	MaxBodyBytes int64
+	// MaxDecodedBodyBytes caps the request body after decompression (and a
+	// body that is not compressed). Zero means DefaultMaxDecodedBodyBytes.
+	MaxDecodedBodyBytes int64
 
 	whClients map[string]*limacharlie.WebhookSender
 	mWebhooks sync.RWMutex
@@ -106,29 +134,19 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	response := common.Response{Version: PROTOCOL_VERSION}
 
-	var body io.ReadCloser
-	var err error
-	body = r.Body
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		if body, err = gzip.NewReader(r.Body); err != nil {
-			response.Error = err.Error()
-			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
+	requestData, status, err := e.readSignedBody(w, r, signature)
+	if err != nil {
+		if status == http.StatusUnauthorized {
+			response.Error = "invalid signature"
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
+			_ = e.respondAndLog(w, status, nil)
 			return
 		}
-		defer body.Close()
-	}
-
-	requestData, err := io.ReadAll(body)
-	if err != nil {
-		response.Error = fmt.Sprintf("failed reading body: %v", err)
-		e.respondAndLog(w, http.StatusNoContent, &response) //nolint:errcheck
-		return
-	}
-
-	if !verifyOrigin(requestData, signature, []byte(e.SecretKey)) {
-		response.Error = "invalid signature"
-		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
-		e.respondAndLog(w, http.StatusUnauthorized, nil) //nolint:errcheck
+		// A refusal for size is decided before the sender is authenticated, so
+		// it is not reported through ErrorHandler: that would let anyone
+		// generate reports.
+		response.Error = err.Error()
+		_ = e.respondAndLog(w, status, &response)
 		return
 	}
 
@@ -268,6 +286,90 @@ func (e *Extension) respondAndLog(w http.ResponseWriter, status int, data interf
 		return err
 	}
 	return nil
+}
+
+func (e *Extension) maxBodyBytes() int64 {
+	if e.MaxBodyBytes > 0 {
+		return e.MaxBodyBytes
+	}
+	return DefaultMaxBodyBytes
+}
+
+func (e *Extension) maxDecodedBodyBytes() int64 {
+	if e.MaxDecodedBodyBytes > 0 {
+		return e.MaxDecodedBodyBytes
+	}
+	return DefaultMaxDecodedBodyBytes
+}
+
+// readSignedBody reads the request body and returns it decoded, only once its
+// signature is verified. It is the first thing that touches the body, and the
+// body is not trusted until then, so what it holds in memory is bounded by the
+// caps before authentication rather than by what the sender chose to send:
+//   - the wire body is capped (http.MaxBytesReader);
+//   - a gzip body is first decompressed straight into the signature check,
+//     which keeps no output and so costs no memory however far it expands, and
+//     is itself capped; the decoded body is only materialised, a second time,
+//     once the signature matched.
+//
+// On failure the returned status is the HTTP status to answer with.
+func (e *Extension) readSignedBody(w http.ResponseWriter, r *http.Request, signature string) ([]byte, int, error) {
+	isGzip := r.Header.Get("Content-Encoding") == "gzip"
+	wireLimit := e.maxBodyBytes()
+	decodedLimit := e.maxDecodedBodyBytes()
+	if !isGzip {
+		// What is on the wire is the decoded body.
+		wireLimit = decodedLimit
+	}
+	if r.ContentLength > wireLimit {
+		return nil, http.StatusRequestEntityTooLarge, fmt.Errorf("%w: limit is %d bytes", errBodyTooLarge, wireLimit)
+	}
+
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, wireLimit))
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return nil, http.StatusRequestEntityTooLarge, fmt.Errorf("%w: limit is %d bytes", errBodyTooLarge, wireLimit)
+		}
+		return nil, http.StatusNoContent, fmt.Errorf("failed reading body: %v", err)
+	}
+
+	if !isGzip {
+		if !verifyOrigin(raw, signature, []byte(e.SecretKey)) {
+			return nil, http.StatusUnauthorized, errors.New("invalid signature")
+		}
+		return raw, http.StatusOK, nil
+	}
+
+	// Pass 1: verify the signature over the decompressed stream without keeping it.
+	zr, err := gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		return nil, http.StatusBadRequest, err
+	}
+	mac := hmac.New(sha256.New, []byte(e.SecretKey))
+	n, err := io.Copy(mac, io.LimitReader(zr, decodedLimit+1))
+	_ = zr.Close()
+	if n > decodedLimit {
+		return nil, http.StatusRequestEntityTooLarge, fmt.Errorf("%w: limit is %d bytes once decompressed", errBodyTooLarge, decodedLimit)
+	}
+	if err != nil {
+		return nil, http.StatusBadRequest, fmt.Errorf("failed decompressing body: %v", err)
+	}
+	if !hmac.Equal([]byte(hex.EncodeToString(mac.Sum(nil))), []byte(signature)) {
+		return nil, http.StatusUnauthorized, errors.New("invalid signature")
+	}
+
+	// Pass 2: the sender is authenticated and the decoded size is known to be within the cap.
+	zr, err = gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		return nil, http.StatusBadRequest, err
+	}
+	defer func() { _ = zr.Close() }()
+	decoded, err := io.ReadAll(io.LimitReader(zr, decodedLimit+1))
+	if err != nil {
+		return nil, http.StatusBadRequest, fmt.Errorf("failed decompressing body: %v", err)
+	}
+	return decoded, http.StatusOK, nil
 }
 
 func verifyOrigin(data []byte, sig string, secretKey []byte) bool {
