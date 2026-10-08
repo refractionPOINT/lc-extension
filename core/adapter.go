@@ -1,10 +1,18 @@
 package core
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 )
@@ -234,4 +242,55 @@ func (e *Extension) SendToWebhookAdapter(o *limacharlie.Organization, data inter
 		return err
 	}
 	return nil
+}
+
+// SendToWebhookAdapterWithContext sends JSON to the extension's adapter, honoring
+// cancellation during URL discovery and the HTTP request. data may be an event
+// or a JSON array of events. The caller owns batching, concurrency and retries;
+// an error does not establish whether the receiver accepted the payload.
+func (e *Extension) SendToWebhookAdapterWithContext(ctx context.Context, o *limacharlie.Organization, data interface{}) error {
+	urls, err := o.GetURLsWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("resolving webhook URL: %w", err)
+	}
+	host, ok := urls["hooks"]
+	if !ok || host == "" {
+		return fmt.Errorf("hook URL not found in org URLs")
+	}
+	endpoint := fmt.Sprintf("https://%s/%s/%s", host, o.GetOID(), url.PathEscape(e.ExtensionName))
+	return sendWebhookWithContext(ctx, &http.Client{Timeout: 30 * time.Second}, endpoint, e.generateWebhookSecretForOrg(o.GetOID()), data)
+}
+
+func sendWebhookWithContext(ctx context.Context, client *http.Client, endpoint, secret string, data interface{}) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var body bytes.Buffer
+	z := gzip.NewWriter(&body)
+	if err := json.NewEncoder(z).Encode(data); err != nil {
+		_ = z.Close()
+		return err
+	}
+	if err := z.Close(); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("User-Agent", "lc-sdk-webhook")
+	req.Header.Set("lc-secret", secret)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	// Reading the small response also lets the shared transport reuse connections.
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("http status code %d: %s", resp.StatusCode, b)
+	}
+	return err
 }
