@@ -13,8 +13,10 @@ import (
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 )
 
-const adapterTestSecret = "test-secret"
-const adapterTestName = "test-extension"
+const (
+	adapterTestSecret = "test-secret"
+	adapterTestName   = "test-extension"
+)
 
 func TestWebhookContextArrayProtocol(t *testing.T) {
 	got := make(chan []map[string]string, 1)
