@@ -13,10 +13,13 @@ import (
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
 )
 
+const adapterTestSecret = "test-secret"
+const adapterTestName = "test-extension"
+
 func TestWebhookContextArrayProtocol(t *testing.T) {
 	got := make(chan []map[string]string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.Header.Get("lc-secret") != "secret" || r.Header.Get("Content-Encoding") != "gzip" || r.Header.Get("Content-Type") != "application/json" {
+		if r.Method != http.MethodPost || r.Header.Get("lc-secret") != adapterTestSecret || r.Header.Get("Content-Encoding") != "gzip" || r.Header.Get("Content-Type") != "application/json" {
 			t.Error("incorrect webhook protocol")
 		}
 		z, err := gzip.NewReader(r.Body)
@@ -25,7 +28,7 @@ func TestWebhookContextArrayProtocol(t *testing.T) {
 			w.WriteHeader(400)
 			return
 		}
-		defer z.Close()
+		defer func() { _ = z.Close() }()
 		var events []map[string]string
 		if err := json.NewDecoder(z).Decode(&events); err != nil {
 			t.Error(err)
@@ -33,11 +36,11 @@ func TestWebhookContextArrayProtocol(t *testing.T) {
 			return
 		}
 		got <- events
-		w.Write([]byte(`{"success":true}`))
+		_, _ = w.Write([]byte(`{"success":true}`))
 	}))
 	defer srv.Close()
 	data := []map[string]string{{"event_type": "created", "id": "1"}, {"event_type": "closed", "id": "2"}}
-	if err := sendWebhookWithContext(context.Background(), srv.Client(), srv.URL, "secret", data); err != nil {
+	if err := sendWebhookWithContext(context.Background(), srv.Client(), srv.URL, adapterTestSecret, data); err != nil {
 		t.Fatal(err)
 	}
 	if events := <-got; len(events) != 2 || events[0]["id"] != "1" || events[1]["id"] != "2" {
@@ -54,7 +57,7 @@ func TestWebhookContextCancelsInflight(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
 	go func() {
-		result <- sendWebhookWithContext(ctx, srv.Client(), srv.URL, "secret", map[string]string{"id": "1"})
+		result <- sendWebhookWithContext(ctx, srv.Client(), srv.URL, adapterTestSecret, map[string]string{"id": "1"})
 	}()
 	<-started
 	cancel()
@@ -69,9 +72,11 @@ func TestWebhookContextCancelsInflight(t *testing.T) {
 }
 
 func TestWebhookContextFailureAndURLCancellation(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "unavailable", 503) }))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
 	defer srv.Close()
-	if err := sendWebhookWithContext(context.Background(), srv.Client(), srv.URL, "secret", []string{"test"}); err == nil {
+	if err := sendWebhookWithContext(context.Background(), srv.Client(), srv.URL, adapterTestSecret, []string{adapterTestName}); err == nil {
 		t.Fatal("503 accepted")
 	}
 	ms := limacharlie.NewMockServer("test-org")
@@ -83,7 +88,7 @@ func TestWebhookContextFailureAndURLCancellation(t *testing.T) {
 	defer org.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	ext := &Extension{ExtensionName: "test", SecretKey: "test"}
+	ext := &Extension{ExtensionName: adapterTestName, SecretKey: adapterTestName}
 	if err := ext.SendToWebhookAdapterWithContext(ctx, org, map[string]string{"id": "1"}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("URL lookup ignored cancellation: %v", err)
 	}

@@ -286,7 +286,7 @@ func sendWebhookWithContext(ctx context.Context, client *http.Client, endpoint, 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// Reading the small response also lets the shared transport reuse connections.
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode != http.StatusOK {
