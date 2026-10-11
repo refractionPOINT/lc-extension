@@ -257,8 +257,23 @@ func (e *Extension) SendToWebhookAdapterWithContext(ctx context.Context, o *lima
 	if !ok || host == "" {
 		return fmt.Errorf("hook URL not found in org URLs")
 	}
-	endpoint := fmt.Sprintf("https://%s/%s/%s", host, o.GetOID(), url.PathEscape(e.ExtensionName))
-	return sendWebhookWithContext(ctx, &http.Client{Timeout: 30 * time.Second}, endpoint, e.generateWebhookSecretForOrg(o.GetOID()), data)
+	return e.SendToWebhookHostWithContext(ctx, o.GetOID(), host, data)
+}
+
+// webhookClient is shared by adapter sends so connections are reused.
+var webhookClient = &http.Client{Timeout: 30 * time.Second}
+
+// SendToWebhookHostWithContext sends JSON to the extension's adapter in org
+// oid through hooksHost, the org's "hooks" URL (Organization.GetURLs). It
+// needs no org credentials: work that outlives the request's JWT can resolve
+// the host while the JWT is valid and send later. Batching, concurrency and
+// retries are the caller's, as with SendToWebhookAdapterWithContext.
+func (e *Extension) SendToWebhookHostWithContext(ctx context.Context, oid, hooksHost string, data interface{}) error {
+	if oid == "" || hooksHost == "" {
+		return fmt.Errorf("webhook send needs an oid and a hooks host")
+	}
+	endpoint := fmt.Sprintf("https://%s/%s/%s", hooksHost, oid, url.PathEscape(e.ExtensionName))
+	return sendWebhookWithContext(ctx, webhookClient, endpoint, e.generateWebhookSecretForOrg(oid), data)
 }
 
 func sendWebhookWithContext(ctx context.Context, client *http.Client, endpoint, secret string, data interface{}) error {

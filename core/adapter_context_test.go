@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,5 +94,33 @@ func TestWebhookContextFailureAndURLCancellation(t *testing.T) {
 	ext := &Extension{ExtensionName: adapterTestName, SecretKey: adapterTestName}
 	if err := ext.SendToWebhookAdapterWithContext(ctx, org, map[string]string{"id": "1"}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("URL lookup ignored cancellation: %v", err)
+	}
+}
+
+func TestWebhookHostSendWithoutOrg(t *testing.T) {
+	const oid = "test-oid"
+	ext := &Extension{ExtensionName: "test extension", SecretKey: adapterTestSecret}
+	got := make(chan *http.Request, 1)
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got <- r
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer srv.Close()
+	saved := webhookClient
+	webhookClient = srv.Client()
+	defer func() { webhookClient = saved }()
+	host := strings.TrimPrefix(srv.URL, "https://")
+	if err := ext.SendToWebhookHostWithContext(context.Background(), oid, host, map[string]string{"id": "1"}); err != nil {
+		t.Fatal(err)
+	}
+	r := <-got
+	if r.URL.EscapedPath() != "/test-oid/test%20extension" {
+		t.Fatalf("path=%q", r.URL.EscapedPath())
+	}
+	if r.Header.Get("lc-secret") != ext.generateWebhookSecretForOrg(oid) {
+		t.Fatal("secret is not the org's derived webhook secret")
+	}
+	if err := ext.SendToWebhookHostWithContext(context.Background(), oid, "", nil); err == nil {
+		t.Fatal("empty hooks host accepted")
 	}
 }
