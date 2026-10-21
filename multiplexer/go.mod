@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/iam v1.11.0
 	cloud.google.com/go/run v1.20.0
 	github.com/google/uuid v1.6.0
-	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20260912155532-2a711ced2bbe
+	github.com/refractionPOINT/go-limacharlie/limacharlie v0.0.0-20261021040350-8413bf1fa358
 	github.com/refractionPOINT/lc-extension v0.0.0-20250826180000-000000000000
 	google.golang.org/protobuf v1.36.11
 )
