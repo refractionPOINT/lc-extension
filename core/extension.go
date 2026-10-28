@@ -231,7 +231,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		org, err := e.generateSDK(message.ConfigValidation.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
-			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.ConfigValidation.Org.OID})
 			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
 			return
 		}
