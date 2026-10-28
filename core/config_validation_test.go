@@ -45,7 +45,7 @@ func TestConfigValidationOrgClientFailureReports500(t *testing.T) {
 		Version:        PROTOCOL_VERSION,
 		IdempotencyKey: testIdem,
 		ConfigValidation: &common.ConfigValidationMessage{
-			Org:    common.OrgAccessData{OID: "oid-conf", JWT: "jwt"},
+			Org:    common.OrgAccessData{OID: "oid-conf", JWT: automationTestJWT},
 			Config: limacharlie.Dict{},
 		},
 	})
