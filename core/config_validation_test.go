@@ -20,6 +20,8 @@ import (
 // Request. When the org client can't be built, the extension must answer 500
 // and report the error against that org instead of crashing on the nil Request.
 func TestConfigValidationOrgClientFailureReports500(t *testing.T) {
+	// With LC_EXTENSION_LOG_ALL_ERRORS set, respondAndLog adds a second report.
+	t.Setenv("LC_EXTENSION_LOG_ALL_ERRORS", "")
 	var reports []*common.ErrorReportMessage
 	ext := &Extension{
 		ExtensionName: "conf-validation-test",
