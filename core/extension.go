@@ -254,7 +254,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RequiredEvents: eventHandlers,
 		}
 	} else {
-		response.Error = fmt.Sprintf("no data in request: %s", requestData)
+		// Keep request content out of both the response and the error callback.
+		response.Error = fmt.Sprintf("no recognized section in request (%d bytes)", len(requestData))
 		e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
 		return
 	}
