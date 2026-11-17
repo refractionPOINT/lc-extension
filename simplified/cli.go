@@ -38,7 +38,10 @@ type CLIName = string
 type CLIExtension struct {
 	Name      string
 	SecretKey string
-	Logger    limacharlie.LCLogger
+	// PreviousSecretKeys are extra shared secrets still accepted on incoming
+	// requests while SecretKey is being rotated. See core.Extension.
+	PreviousSecretKeys []string
+	Logger             limacharlie.LCLogger
 
 	Descriptors map[CLIName]CLIDescriptor
 
@@ -79,6 +82,15 @@ const commandArgumentsMaxSize = 1024 * 10
 
 // Maximum number of items for CLI arguments when specified as a list / parsing string argument to a list
 const commandArgumentsMaxCount = 50
+
+// Default implementation of re-creating the extension adapter. Only to be overridden by tests.
+var installAdapterFunc = func(e *CLIExtension, o *limacharlie.Organization) error {
+	return e.installRulesIfNeeded(o)
+}
+
+// How long to wait between attempts to send a hook after re-syncing the
+// adapter, giving the webhook gateway time to see the new secret.
+var adapterResyncRetryDelays = []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second}
 
 // Default implementation of SendToWebhookAdapterFunc. Only to be overridden by tests.
 var sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
@@ -136,8 +148,9 @@ func (e *CLIExtension) Init() (*core.Extension, error) {
 		longDesc = fmt.Sprintf("Run a CLI command using the %s tool by providing a list of command line parameters to provide to it.", toolList[0])
 	}
 	x := &core.Extension{
-		ExtensionName: e.Name,
-		SecretKey:     e.SecretKey,
+		ExtensionName:      e.Name,
+		SecretKey:          e.SecretKey,
+		PreviousSecretKeys: e.PreviousSecretKeys,
 		// The schema defining what the configuration for this Extension should look like.
 		ConfigSchema: common.SchemaObject{},
 		// The schema defining what requests to this Extension should look like.
@@ -275,6 +288,46 @@ func (e *CLIExtension) installRulesIfNeeded(o *limacharlie.Organization) error {
 	return nil
 }
 
+// sendToAdapter logs a hook to the org's extension adapter. The adapter's
+// secret is derived from the extension's shared secret when the org
+// subscribes, so after the shared secret is rotated, orgs that subscribed
+// before the rotation reject the hook with "wrong secret". When that happens
+// the adapter is re-synced with the current secret and the hook is sent
+// again once the change has propagated.
+func (e *CLIExtension) sendToAdapter(o *limacharlie.Organization, hook limacharlie.Dict) {
+	err := sendToWebhookAdapterFunc(e.extension, o, hook)
+	if err == nil {
+		return
+	}
+	if !isWebhookWrongSecret(err) {
+		e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter: %v", err))
+		return
+	}
+	e.Logger.Info(fmt.Sprintf("webhook adapter for %s has a stale secret, re-syncing it", o.GetOID()))
+	if err := installAdapterFunc(e, o); err != nil {
+		e.Logger.Error(fmt.Sprintf("failed to re-sync webhook adapter for %s: %v", o.GetOID(), err))
+		return
+	}
+	for _, delay := range adapterResyncRetryDelays {
+		time.Sleep(delay)
+		if err = sendToWebhookAdapterFunc(e.extension, o, hook); err == nil || !isWebhookWrongSecret(err) {
+			break
+		}
+	}
+	if err != nil {
+		e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter after re-syncing it: %v", err))
+	}
+}
+
+// isWebhookWrongSecret reports whether the webhook gateway rejected a hook
+// because the adapter holds a different secret than the one sent. Other
+// rejections (such as an adapter the org removed or disabled) are not
+// re-synced, so a deliberate change to the adapter is left alone.
+func isWebhookWrongSecret(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "http status code 401") && strings.Contains(msg, "wrong secret")
+}
+
 func (e *CLIExtension) uninstallAllRules(o *limacharlie.Organization) error {
 	if err := e.extension.DeleteExtensionAdapter(o); err != nil {
 		e.Logger.Error(fmt.Sprintf("failed to delete extension adapter: %v", err))
@@ -386,9 +439,7 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
-	if err := sendToWebhookAdapterFunc(e.extension, o, hook); err != nil {
-		e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter: %v", err))
-	}
+	e.sendToAdapter(o, hook)
 
 	if err != nil {
 		doRunResp = common.Response{

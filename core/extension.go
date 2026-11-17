@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net/http"
 	"os"
@@ -43,7 +44,15 @@ var errBodyTooLarge = errors.New("request body too large")
 type Extension struct {
 	ExtensionName string
 	SecretKey     string
-	Callbacks     ExtensionCallbacks
+	// PreviousSecretKeys are extra shared secrets accepted when verifying
+	// the signature of an incoming request, so SecretKey can be rotated
+	// without downtime: deploy with the new SecretKey and the old value
+	// here, update the secret on the LimaCharlie side, then remove the old
+	// value. They are only ever used to verify; everything derived from
+	// the shared secret (such as the webhook adapter secrets) uses
+	// SecretKey. Empty values are ignored.
+	PreviousSecretKeys []string
+	Callbacks          ExtensionCallbacks
 
 	ViewsSchema    []common.View
 	ConfigSchema   common.SchemaObject
@@ -335,11 +344,15 @@ func (e *Extension) readSignedBody(w http.ResponseWriter, r *http.Request, signa
 		return nil, http.StatusNoContent, fmt.Errorf("failed reading body: %v", err)
 	}
 
+	keys := e.verificationKeys()
+
 	if !isGzip {
-		if !verifyOrigin(raw, signature, []byte(e.SecretKey)) {
-			return nil, http.StatusUnauthorized, errors.New("invalid signature")
+		for _, k := range keys {
+			if verifyOrigin(raw, signature, k) {
+				return raw, http.StatusOK, nil
+			}
 		}
-		return raw, http.StatusOK, nil
+		return nil, http.StatusUnauthorized, errors.New("invalid signature")
 	}
 
 	// Pass 1: verify the signature over the decompressed stream without keeping it.
@@ -347,8 +360,13 @@ func (e *Extension) readSignedBody(w http.ResponseWriter, r *http.Request, signa
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
-	mac := hmac.New(sha256.New, []byte(e.SecretKey))
-	n, err := io.Copy(mac, io.LimitReader(zr, decodedLimit+1))
+	macs := make([]hash.Hash, len(keys))
+	macWriters := make([]io.Writer, len(keys))
+	for i, k := range keys {
+		macs[i] = hmac.New(sha256.New, k)
+		macWriters[i] = macs[i]
+	}
+	n, err := io.Copy(io.MultiWriter(macWriters...), io.LimitReader(zr, decodedLimit+1))
 	_ = zr.Close()
 	if n > decodedLimit {
 		return nil, http.StatusRequestEntityTooLarge, fmt.Errorf("%w: limit is %d bytes once decompressed", errBodyTooLarge, decodedLimit)
@@ -356,7 +374,14 @@ func (e *Extension) readSignedBody(w http.ResponseWriter, r *http.Request, signa
 	if err != nil {
 		return nil, http.StatusBadRequest, fmt.Errorf("failed decompressing body: %v", err)
 	}
-	if !hmac.Equal([]byte(hex.EncodeToString(mac.Sum(nil))), []byte(signature)) {
+	isVerified := false
+	for _, mac := range macs {
+		if hmac.Equal([]byte(hex.EncodeToString(mac.Sum(nil))), []byte(signature)) {
+			isVerified = true
+			break
+		}
+	}
+	if !isVerified {
 		return nil, http.StatusUnauthorized, errors.New("invalid signature")
 	}
 
@@ -371,6 +396,19 @@ func (e *Extension) readSignedBody(w http.ResponseWriter, r *http.Request, signa
 		return nil, http.StatusBadRequest, fmt.Errorf("failed decompressing body: %v", err)
 	}
 	return decoded, http.StatusOK, nil
+}
+
+// verificationKeys returns the shared secrets an incoming request may be
+// signed with: SecretKey first, then any non-empty PreviousSecretKeys.
+func (e *Extension) verificationKeys() [][]byte {
+	keys := [][]byte{[]byte(e.SecretKey)}
+	for _, k := range e.PreviousSecretKeys {
+		if k == "" || k == e.SecretKey {
+			continue
+		}
+		keys = append(keys, []byte(k))
+	}
+	return keys
 }
 
 func verifyOrigin(data []byte, sig string, secretKey []byte) bool {
