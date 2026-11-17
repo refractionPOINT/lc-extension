@@ -144,7 +144,7 @@ func TestSendToAdapterResyncsStaleAdapterAfterRotation(t *testing.T) {
 	oldAdapterSecret := adapterSecret(t, org, oldExt.Name)
 
 	newExt := newRotationCLIExtension(t, "new-secret", "old-secret")
-	newExt.sendToAdapter(context.Background(), org, testHook)
+	newExt.sendToAdapter(context.Background(), time.Now().Add(time.Hour), org, testHook)
 
 	if gw.rejected != 1 || gw.accepted != 1 {
 		t.Fatalf("gateway rejected %d and accepted %d hooks, want 1 rejected then 1 accepted", gw.rejected, gw.accepted)
@@ -154,7 +154,7 @@ func TestSendToAdapterResyncsStaleAdapterAfterRotation(t *testing.T) {
 	}
 
 	// Later hooks go straight through.
-	newExt.sendToAdapter(context.Background(), org, testHook)
+	newExt.sendToAdapter(context.Background(), time.Now().Add(time.Hour), org, testHook)
 	if gw.rejected != 1 || gw.accepted != 2 {
 		t.Fatalf("gateway rejected %d and accepted %d hooks, want the second hook accepted directly", gw.rejected, gw.accepted)
 	}
@@ -174,7 +174,7 @@ func TestSendToAdapterDoesNotRecreateMissingAdapter(t *testing.T) {
 	}
 	t.Cleanup(func() { installAdapterFunc = origInstall })
 
-	e.sendToAdapter(context.Background(), org, testHook)
+	e.sendToAdapter(context.Background(), time.Now().Add(time.Hour), org, testHook)
 	if installs != 0 || gw.rejected != 1 || gw.accepted != 0 {
 		t.Fatalf("installs %d, rejected %d, accepted %d: want no re-sync of a missing adapter", installs, gw.rejected, gw.accepted)
 	}
@@ -194,7 +194,7 @@ func TestSendToAdapterResyncFailureStopsRetries(t *testing.T) {
 	installAdapterFunc = func(*CLIExtension, *limacharlie.Organization) error { return errors.New("permission denied") }
 	t.Cleanup(func() { installAdapterFunc = origInstall })
 
-	newExt.sendToAdapter(context.Background(), org, testHook)
+	newExt.sendToAdapter(context.Background(), time.Now().Add(time.Hour), org, testHook)
 	if gw.rejected != 1 || gw.accepted != 0 {
 		t.Fatalf("rejected %d, accepted %d: want a single attempt", gw.rejected, gw.accepted)
 	}
@@ -214,7 +214,7 @@ func TestSendToAdapterRetriesAreBounded(t *testing.T) {
 	installAdapterFunc = func(*CLIExtension, *limacharlie.Organization) error { return nil }
 	t.Cleanup(func() { installAdapterFunc = origInstall })
 
-	newExt.sendToAdapter(context.Background(), org, testHook)
+	newExt.sendToAdapter(context.Background(), time.Now().Add(time.Hour), org, testHook)
 	if want := 1 + len(adapterResyncRetryDelays); gw.rejected != want || gw.accepted != 0 {
 		t.Fatalf("rejected %d, accepted %d: want %d attempts", gw.rejected, gw.accepted, want)
 	}
@@ -238,7 +238,7 @@ func TestSendToAdapterStopsRetryingWhenRequestEnds(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	newExt.sendToAdapter(ctx, org, testHook)
+	newExt.sendToAdapter(ctx, time.Now().Add(time.Hour), org, testHook)
 	if elapsed := time.Since(start); elapsed > 10*time.Second {
 		t.Fatalf("sendToAdapter took %v after the request ended", elapsed)
 	}
@@ -258,7 +258,7 @@ func TestSendToAdapterRetriesThroughGatewayRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	newExt := newRotationCLIExtension(t, "new-secret", "old-secret")
-	newExt.sendToAdapter(context.Background(), org, testHook)
+	newExt.sendToAdapter(context.Background(), time.Now().Add(time.Hour), org, testHook)
 
 	if gw.rejected != 1 || gw.unavailable != 2 || gw.accepted != 1 {
 		t.Fatalf("rejected %d, unavailable %d, accepted %d: want the hook delivered after the refresh", gw.rejected, gw.unavailable, gw.accepted)
@@ -282,8 +282,35 @@ func TestSendToAdapterDoesNotResyncOnUnavailable(t *testing.T) {
 	}
 	t.Cleanup(func() { sendToWebhookAdapterFunc = origSend })
 
-	e.sendToAdapter(context.Background(), org, testHook)
+	e.sendToAdapter(context.Background(), time.Now().Add(time.Hour), org, testHook)
 	if installs != 0 {
 		t.Fatalf("re-synced the adapter %d times on a 503", installs)
+	}
+}
+
+// No retry is started that would end past the request's time budget, so the
+// response still reaches the extension manager before it gives up.
+func TestSendToAdapterStopsRetryingPastRequestBudget(t *testing.T) {
+	_, org, gw := newRotationFixture(t)
+	adapterResyncRetryDelays = []time.Duration{time.Second}
+
+	oldExt := newRotationCLIExtension(t, "old-secret")
+	if err := oldExt.installRulesIfNeeded(org); err != nil {
+		t.Fatal(err)
+	}
+	staleSecret := adapterSecret(t, org, oldExt.Name)
+	newExt := newRotationCLIExtension(t, "new-secret")
+
+	start := time.Now()
+	newExt.sendToAdapter(context.Background(), time.Now().Add(500*time.Millisecond), org, testHook)
+	if elapsed := time.Since(start); elapsed > 900*time.Millisecond {
+		t.Fatalf("waited %v for a retry that could not finish in time", elapsed)
+	}
+	if gw.rejected != 1 || gw.accepted != 0 {
+		t.Fatalf("rejected %d, accepted %d: want only the first attempt", gw.rejected, gw.accepted)
+	}
+	// The adapter is still re-synced, so the next command's hook goes through.
+	if got := adapterSecret(t, org, newExt.Name); got == staleSecret {
+		t.Fatal("adapter was not re-synced")
 	}
 }
