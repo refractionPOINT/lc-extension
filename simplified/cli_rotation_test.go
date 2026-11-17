@@ -60,6 +60,9 @@ func (g *fakeHookGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// The content of the hook does not matter to the adapter re-sync.
+var testHook = limacharlie.Dict{"k": "v"}
+
 func newRotationFixture(t *testing.T) (*limacharlie.MockServer, *limacharlie.Organization, *fakeHookGateway) {
 	t.Helper()
 	ms := limacharlie.NewMockServer(dummyOpt.OID)
@@ -91,7 +94,7 @@ func newRotationCLIExtension(t *testing.T, secret string, previous ...string) *C
 		SecretKey:          secret,
 		PreviousSecretKeys: previous,
 		Logger:             dummyLogger{},
-		Descriptors:        map[CLIName]CLIDescriptor{"dummy": {ProcessCommand: func(context.Context, []string, string) (CLIReturnData, error) { return CLIReturnData{}, nil }}},
+		Descriptors:        map[CLIName]CLIDescriptor{"rotation-test-tool": {ProcessCommand: func(context.Context, []string, string) (CLIReturnData, error) { return CLIReturnData{}, nil }}},
 	}
 	if _, err := e.Init(); err != nil {
 		t.Fatal(err)
@@ -126,7 +129,7 @@ func TestSendToAdapterResyncsStaleAdapterAfterRotation(t *testing.T) {
 	oldAdapterSecret := adapterSecret(t, org, oldExt.Name)
 
 	newExt := newRotationCLIExtension(t, "new-secret", "old-secret")
-	newExt.sendToAdapter(org, limacharlie.Dict{"action": "run"})
+	newExt.sendToAdapter(context.Background(), org, testHook)
 
 	if gw.rejected != 1 || gw.accepted != 1 {
 		t.Fatalf("gateway rejected %d and accepted %d hooks, want 1 rejected then 1 accepted", gw.rejected, gw.accepted)
@@ -136,7 +139,7 @@ func TestSendToAdapterResyncsStaleAdapterAfterRotation(t *testing.T) {
 	}
 
 	// Later hooks go straight through.
-	newExt.sendToAdapter(org, limacharlie.Dict{"action": "run"})
+	newExt.sendToAdapter(context.Background(), org, testHook)
 	if gw.rejected != 1 || gw.accepted != 2 {
 		t.Fatalf("gateway rejected %d and accepted %d hooks, want the second hook accepted directly", gw.rejected, gw.accepted)
 	}
@@ -156,7 +159,7 @@ func TestSendToAdapterDoesNotRecreateMissingAdapter(t *testing.T) {
 	}
 	t.Cleanup(func() { installAdapterFunc = origInstall })
 
-	e.sendToAdapter(org, limacharlie.Dict{"action": "run"})
+	e.sendToAdapter(context.Background(), org, testHook)
 	if installs != 0 || gw.rejected != 1 || gw.accepted != 0 {
 		t.Fatalf("installs %d, rejected %d, accepted %d: want no re-sync of a missing adapter", installs, gw.rejected, gw.accepted)
 	}
@@ -176,7 +179,7 @@ func TestSendToAdapterResyncFailureStopsRetries(t *testing.T) {
 	installAdapterFunc = func(*CLIExtension, *limacharlie.Organization) error { return errors.New("permission denied") }
 	t.Cleanup(func() { installAdapterFunc = origInstall })
 
-	newExt.sendToAdapter(org, limacharlie.Dict{"action": "run"})
+	newExt.sendToAdapter(context.Background(), org, testHook)
 	if gw.rejected != 1 || gw.accepted != 0 {
 		t.Fatalf("rejected %d, accepted %d: want a single attempt", gw.rejected, gw.accepted)
 	}
@@ -196,8 +199,35 @@ func TestSendToAdapterRetriesAreBounded(t *testing.T) {
 	installAdapterFunc = func(*CLIExtension, *limacharlie.Organization) error { return nil }
 	t.Cleanup(func() { installAdapterFunc = origInstall })
 
-	newExt.sendToAdapter(org, limacharlie.Dict{"action": "run"})
+	newExt.sendToAdapter(context.Background(), org, testHook)
 	if want := 1 + len(adapterResyncRetryDelays); gw.rejected != want || gw.accepted != 0 {
 		t.Fatalf("rejected %d, accepted %d: want %d attempts", gw.rejected, gw.accepted, want)
+	}
+}
+
+// A cancelled request stops waiting for the re-synced adapter.
+func TestSendToAdapterStopsRetryingWhenRequestEnds(t *testing.T) {
+	_, org, gw := newRotationFixture(t)
+	adapterResyncRetryDelays = []time.Duration{time.Hour}
+
+	oldExt := newRotationCLIExtension(t, "old-secret")
+	if err := oldExt.installRulesIfNeeded(org); err != nil {
+		t.Fatal(err)
+	}
+	newExt := newRotationCLIExtension(t, "new-secret")
+
+	origInstall := installAdapterFunc
+	installAdapterFunc = func(*CLIExtension, *limacharlie.Organization) error { return nil }
+	t.Cleanup(func() { installAdapterFunc = origInstall })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	newExt.sendToAdapter(ctx, org, testHook)
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("sendToAdapter took %v after the request ended", elapsed)
+	}
+	if gw.rejected != 1 || gw.accepted != 0 {
+		t.Fatalf("rejected %d, accepted %d: want only the first attempt", gw.rejected, gw.accepted)
 	}
 }

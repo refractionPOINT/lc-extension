@@ -143,7 +143,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 		if !strings.Contains(resp.Error, "failed to parse command line") {
 			t.Errorf("expected parse error, got: %s", resp.Error)
 		}
@@ -161,7 +161,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 		expected := fmt.Sprintf("command line is too long, max size is %d bytes", commandArgumentsMaxSize)
 		if resp.Error != expected {
 			t.Errorf("expected error: %s, got: %s", expected, resp.Error)
@@ -180,7 +180,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 		expected := fmt.Sprintf("command arguments are too long, max count is %d", commandArgumentsMaxCount)
 		if resp.Error != expected {
 			t.Errorf("expected error: %s, got: %s", expected, resp.Error)
@@ -209,7 +209,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "nonexistent",
 		}
-		resp := cliExtMulti.doRun(org, req, "ident", "inv")
+		resp := cliExtMulti.doRun(context.Background(), org, req, "ident", "inv")
 		expected := "unknown tool: nonexistent"
 		if resp.Error != expected {
 			t.Errorf("expected error: %s, got: %s", expected, resp.Error)
@@ -228,7 +228,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 		// Expect error message to include DeadlineExceeded.
 		if !strings.Contains(resp.Error, "context deadline exceeded") {
 			t.Errorf("expected DeadlineExceeded error, got: %s", resp.Error)
@@ -247,7 +247,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 		// Expect error message to include "canceled" (case-insensitive check).
 		if !strings.Contains(strings.ToLower(resp.Error), "canceled") {
 			t.Errorf("expected canceled error, got: %s", resp.Error)
@@ -266,7 +266,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 		if resp.Error != "generic error" {
 			t.Errorf("expected generic error, got: %s", resp.Error)
 		}
@@ -294,7 +294,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Tool:          "dummy",
 		}
 
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 
 		// Expect the error message to be "temporary error"
 		if resp.Error != "temporary error" {
@@ -316,7 +316,7 @@ func TestDoRun_ErrorHandling(t *testing.T) {
 			Credentials:   "creds",
 			Tool:          "dummy",
 		}
-		resp := cliExt.doRun(org, req, "ident", "inv")
+		resp := cliExt.doRun(context.Background(), org, req, "ident", "inv")
 		if resp.Error != "" {
 			t.Errorf("expected no error, got: %s", resp.Error)
 		}

@@ -236,7 +236,7 @@ func (e *CLIExtension) Init() (*core.Extension, error) {
 			"run": {
 				RequestStruct: &CLIRunRequest{},
 				Callback: func(ctx context.Context, params core.RequestCallbackParams) common.Response {
-					return e.doRun(params.Org, params.Request.(*CLIRunRequest), params.Ident, params.InvestigationID)
+					return e.doRun(ctx, params.Org, params.Request.(*CLIRunRequest), params.Ident, params.InvestigationID)
 				},
 			},
 		},
@@ -293,8 +293,15 @@ func (e *CLIExtension) installRulesIfNeeded(o *limacharlie.Organization) error {
 // subscribes, so after the shared secret is rotated, orgs that subscribed
 // before the rotation reject the hook with "wrong secret". When that happens
 // the adapter is re-synced with the current secret and the hook is sent
-// again once the change has propagated.
-func (e *CLIExtension) sendToAdapter(o *limacharlie.Organization, hook limacharlie.Dict) {
+// again once the change has propagated, for as long as ctx allows.
+//
+// Only one shared secret can own an org's adapter at a time: two builds
+// running with different secrets against the same orgs (for example a
+// rollback to the old secret after a rotation) would each see the other's
+// adapter secret as stale. Builds without this re-sync only log the
+// rejection, so after rolling back a rotation, re-subscribe or re-sync the
+// affected orgs.
+func (e *CLIExtension) sendToAdapter(ctx context.Context, o *limacharlie.Organization, hook limacharlie.Dict) {
 	err := sendToWebhookAdapterFunc(e.extension, o, hook)
 	if err == nil {
 		return
@@ -309,7 +316,12 @@ func (e *CLIExtension) sendToAdapter(o *limacharlie.Organization, hook limacharl
 		return
 	}
 	for _, delay := range adapterResyncRetryDelays {
-		time.Sleep(delay)
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			e.Logger.Error(fmt.Sprintf("gave up sending to re-synced webhook adapter for %s: %v", o.GetOID(), ctx.Err()))
+			return
+		}
 		if err = sendToWebhookAdapterFunc(e.extension, o, hook); err == nil || !isWebhookWrongSecret(err) {
 			break
 		}
@@ -336,7 +348,7 @@ func (e *CLIExtension) uninstallAllRules(o *limacharlie.Organization) error {
 	return nil
 }
 
-func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest, ident string, invID string) common.Response {
+func (e *CLIExtension) doRun(reqCtx context.Context, o *limacharlie.Organization, request *CLIRunRequest, ident string, invID string) common.Response {
 	// We're paranoid about this extension as in some cases we
 	// drop creds on disk in temp files and the CLIs are not
 	// isolated in sub-containers (yet).
@@ -439,7 +451,7 @@ func (e *CLIExtension) doRun(o *limacharlie.Organization, request *CLIRunRequest
 		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
-	e.sendToAdapter(o, hook)
+	e.sendToAdapter(reqCtx, o, hook)
 
 	if err != nil {
 		doRunResp = common.Response{
