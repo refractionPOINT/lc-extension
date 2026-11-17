@@ -96,7 +96,9 @@ var adapterResyncRetryDelays = []time.Duration{1 * time.Second, 2 * time.Second,
 
 // No retry is started past this long after the request arrived. The
 // extension manager waits 2 minutes for an extension's response, and a
-// response that arrives after that may get the command run again.
+// response that arrives after that may get the command run again. The check
+// counts only the wait before a retry; the 20s left before the manager gives
+// up covers that retry's send (the gateway answers in milliseconds).
 var adapterResyncRequestBudget = 100 * time.Second
 
 // Default implementation of SendToWebhookAdapterFunc. Only to be overridden by tests.

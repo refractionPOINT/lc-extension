@@ -292,7 +292,8 @@ func TestSendToAdapterDoesNotResyncOnUnavailable(t *testing.T) {
 // response still reaches the extension manager before it gives up.
 func TestSendToAdapterStopsRetryingPastRequestBudget(t *testing.T) {
 	_, org, gw := newRotationFixture(t)
-	adapterResyncRetryDelays = []time.Duration{time.Second}
+	// A retry the budget check misses would hang for an hour, not finish a little late.
+	adapterResyncRetryDelays = []time.Duration{time.Hour}
 
 	oldExt := newRotationCLIExtension(t, "old-secret")
 	if err := oldExt.installRulesIfNeeded(org); err != nil {
@@ -302,8 +303,8 @@ func TestSendToAdapterStopsRetryingPastRequestBudget(t *testing.T) {
 	newExt := newRotationCLIExtension(t, "new-secret")
 
 	start := time.Now()
-	newExt.sendToAdapter(context.Background(), time.Now().Add(500*time.Millisecond), org, testHook)
-	if elapsed := time.Since(start); elapsed > 900*time.Millisecond {
+	newExt.sendToAdapter(context.Background(), time.Now().Add(time.Minute), org, testHook)
+	if elapsed := time.Since(start); elapsed > 30*time.Second {
 		t.Fatalf("waited %v for a retry that could not finish in time", elapsed)
 	}
 	if gw.rejected != 1 || gw.accepted != 0 {
