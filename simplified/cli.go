@@ -89,8 +89,17 @@ var installAdapterFunc = func(e *CLIExtension, o *limacharlie.Organization) erro
 }
 
 // How long to wait between attempts to send a hook after re-syncing the
-// adapter, giving the webhook gateway time to see the new secret.
-var adapterResyncRetryDelays = []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second}
+// adapter, giving the webhook gateway time to see the new secret. The gateway
+// applies an adapter change within a few seconds, retrying its own refresh for
+// up to 30 seconds, so the schedule spans about that long.
+var adapterResyncRetryDelays = []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 15 * time.Second}
+
+// No retry is started past this long after the request arrived. The
+// extension manager waits 2 minutes for an extension's response, and a
+// response that arrives after that may get the command run again. The check
+// counts only the wait before a retry; the 20s left before the manager gives
+// up covers that retry's send (the gateway answers in milliseconds).
+var adapterResyncRequestBudget = 100 * time.Second
 
 // Default implementation of SendToWebhookAdapterFunc. Only to be overridden by tests.
 var sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
@@ -293,7 +302,8 @@ func (e *CLIExtension) installRulesIfNeeded(o *limacharlie.Organization) error {
 // subscribes, so after the shared secret is rotated, orgs that subscribed
 // before the rotation reject the hook with "wrong secret". When that happens
 // the adapter is re-synced with the current secret and the hook is sent
-// again once the change has propagated, for as long as ctx allows.
+// again once the change has propagated, for as long as ctx allows and no
+// retry would end past notAfter.
 //
 // Only one shared secret can own an org's adapter at a time: two builds
 // running with different secrets against the same orgs (for example a
@@ -301,7 +311,7 @@ func (e *CLIExtension) installRulesIfNeeded(o *limacharlie.Organization) error {
 // adapter secret as stale. Builds without this re-sync only log the
 // rejection, so after rolling back a rotation, re-subscribe or re-sync the
 // affected orgs.
-func (e *CLIExtension) sendToAdapter(ctx context.Context, o *limacharlie.Organization, hook limacharlie.Dict) {
+func (e *CLIExtension) sendToAdapter(ctx context.Context, notAfter time.Time, o *limacharlie.Organization, hook limacharlie.Dict) {
 	err := sendToWebhookAdapterFunc(e.extension, o, hook)
 	if err == nil {
 		return
@@ -316,19 +326,31 @@ func (e *CLIExtension) sendToAdapter(ctx context.Context, o *limacharlie.Organiz
 		return
 	}
 	for _, delay := range adapterResyncRetryDelays {
+		if time.Now().Add(delay).After(notAfter) {
+			e.Logger.Error(fmt.Sprintf("gave up sending to re-synced webhook adapter for %s: out of time for the request", o.GetOID()))
+			return
+		}
 		select {
 		case <-time.After(delay):
 		case <-ctx.Done():
 			e.Logger.Error(fmt.Sprintf("gave up sending to re-synced webhook adapter for %s: %v", o.GetOID(), ctx.Err()))
 			return
 		}
-		if err = sendToWebhookAdapterFunc(e.extension, o, hook); err == nil || !isWebhookWrongSecret(err) {
+		if err = sendToWebhookAdapterFunc(e.extension, o, hook); err == nil || !isAdapterResyncPending(err) {
 			break
 		}
 	}
 	if err != nil {
 		e.Logger.Error(fmt.Sprintf("failed to send to webhook adapter after re-syncing it: %v", err))
 	}
+}
+
+// isAdapterResyncPending reports whether a hook sent after re-syncing the
+// adapter was refused only because the gateway has not applied the new secret
+// yet: it still holds the old one, or it answers 503 while it refreshes the
+// adapter's configuration.
+func isAdapterResyncPending(err error) bool {
+	return isWebhookWrongSecret(err) || strings.Contains(err.Error(), "http status code 503")
 }
 
 // isWebhookWrongSecret reports whether the webhook gateway rejected a hook
@@ -349,6 +371,7 @@ func (e *CLIExtension) uninstallAllRules(o *limacharlie.Organization) error {
 }
 
 func (e *CLIExtension) doRun(reqCtx context.Context, o *limacharlie.Organization, request *CLIRunRequest, ident string, invID string) common.Response {
+	requestStart := time.Now()
 	// We're paranoid about this extension as in some cases we
 	// drop creds on disk in temp files and the CLIs are not
 	// isolated in sub-containers (yet).
@@ -451,7 +474,7 @@ func (e *CLIExtension) doRun(reqCtx context.Context, o *limacharlie.Organization
 		e.Logger.Debug(fmt.Sprintf("command for %s and tool %s succeeded and took %f seconds", o.GetOID(), request.Tool, elapsed.Seconds()))
 	}
 
-	e.sendToAdapter(reqCtx, o, hook)
+	e.sendToAdapter(reqCtx, requestStart.Add(adapterResyncRequestBudget), o, hook)
 
 	if err != nil {
 		doRunResp = common.Response{
