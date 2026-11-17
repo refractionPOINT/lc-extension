@@ -24,7 +24,10 @@ type (
 type LookupExtension struct {
 	Name      string
 	SecretKey string
-	Logger    limacharlie.LCLogger
+	// PreviousSecretKeys are extra shared secrets still accepted on incoming
+	// requests while SecretKey is being rotated. See core.Extension.
+	PreviousSecretKeys []string
+	Logger             limacharlie.LCLogger
 
 	GetLookup     GetLookupCallback
 	EventHandlers map[common.EventName]core.EventCallback // Optional
@@ -40,8 +43,9 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	l.ruleName = fmt.Sprintf("ext-%s-update", l.Name)
 
 	x := &core.Extension{
-		ExtensionName: l.Name,
-		SecretKey:     l.SecretKey,
+		ExtensionName:      l.Name,
+		SecretKey:          l.SecretKey,
+		PreviousSecretKeys: l.PreviousSecretKeys,
 		RequiredEvents: []common.EventName{
 			common.EventTypes.Subscribe,
 			common.EventTypes.Unsubscribe,
