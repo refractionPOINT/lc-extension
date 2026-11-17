@@ -89,8 +89,10 @@ var installAdapterFunc = func(e *CLIExtension, o *limacharlie.Organization) erro
 }
 
 // How long to wait between attempts to send a hook after re-syncing the
-// adapter, giving the webhook gateway time to see the new secret.
-var adapterResyncRetryDelays = []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second}
+// adapter, giving the webhook gateway time to see the new secret. The gateway
+// applies an adapter change within a few seconds, retrying its own refresh for
+// up to 30 seconds, so the schedule spans about that long.
+var adapterResyncRetryDelays = []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 15 * time.Second}
 
 // Default implementation of SendToWebhookAdapterFunc. Only to be overridden by tests.
 var sendToWebhookAdapterFunc = func(ext *core.Extension, o *limacharlie.Organization, hook limacharlie.Dict) error {
@@ -322,7 +324,7 @@ func (e *CLIExtension) sendToAdapter(ctx context.Context, o *limacharlie.Organiz
 			e.Logger.Error(fmt.Sprintf("gave up sending to re-synced webhook adapter for %s: %v", o.GetOID(), ctx.Err()))
 			return
 		}
-		if err = sendToWebhookAdapterFunc(e.extension, o, hook); err == nil || !isWebhookWrongSecret(err) {
+		if err = sendToWebhookAdapterFunc(e.extension, o, hook); err == nil || !isAdapterResyncPending(err) {
 			break
 		}
 	}
@@ -335,6 +337,14 @@ func (e *CLIExtension) sendToAdapter(ctx context.Context, o *limacharlie.Organiz
 // because the adapter holds a different secret than the one sent. Other
 // rejections (such as an adapter the org removed or disabled) are not
 // re-synced, so a deliberate change to the adapter is left alone.
+// isAdapterResyncPending reports whether a hook sent after re-syncing the
+// adapter was refused only because the gateway has not applied the new secret
+// yet: it still holds the old one, or it answers 503 while it refreshes the
+// adapter's configuration.
+func isAdapterResyncPending(err error) bool {
+	return isWebhookWrongSecret(err) || strings.Contains(err.Error(), "http status code 503")
+}
+
 func isWebhookWrongSecret(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "http status code 401") && strings.Contains(msg, "wrong secret")
