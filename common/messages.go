@@ -15,6 +15,7 @@ type Message struct {
 	SchemaRequest    *SchemaRequestMessage    `json:"schema_request,omitempty" msgpack:"schema_request,omitempty"`
 	Request          *RequestMessage          `json:"request,omitempty" msgpack:"request,omitempty"`
 	Event            *EventMessage            `json:"event,omitempty" msgpack:"event,omitempty"`
+	FleetRequest     *FleetRequestMessage     `json:"fleet_request,omitempty" msgpack:"fleet_request,omitempty"`
 }
 
 // Recurring messages used by LimaCharlie to see if an Extension is still available.
@@ -83,6 +84,42 @@ type RequestMessage struct {
 	// credential in Org.JWT is the extension's own; when it is empty on an impersonated action, Org.JWT is
 	// the caller's.
 	AutomationRule string `json:"automation_rule,omitempty" msgpack:"automation_rule,omitempty"`
+}
+
+// MaxFleetRequestOIDs is the most organizations one FleetRequestMessage names.
+// LimaCharlie never sends more; a caller with more organizations splits them
+// over several requests.
+const MaxFleetRequestOIDs = 1000
+
+// A read about several organizations at once, for a view that spans tenants.
+//
+// LimaCharlie sends it only for an action whose RequestSchema sets IsFleet, and
+// only after it has decided that the person or key asking may see every
+// organization in OIDs: the list is authoritative and the Extension does not
+// check it again. The message is signed like every other message, and it
+// carries no organization credentials, no configuration and no ACL block. The
+// Extension answers it from its own store only. It never calls LimaCharlie on
+// behalf of the organizations it names, and it answers nothing about an
+// organization that is not in OIDs.
+//
+// An organization the Extension knows nothing about (one that is not
+// subscribed) is left out of the answer, never an error: the caller reads its
+// absence as "not subscribed".
+//
+// This message is internal to LimaCharlie for now: the public API does not
+// expose it and its shape may still change.
+type FleetRequestMessage struct {
+	Action ActionName `json:"action" msgpack:"action"`
+	// OIDs are the organizations the read covers: at least one and at most
+	// MaxFleetRequestOIDs, each a lowercase UUID, without duplicates, sorted
+	// ascending.
+	OIDs []string `json:"oids" msgpack:"oids"`
+	// Data holds the action's parameters, as for a RequestMessage.
+	Data limacharlie.Dict `json:"data" msgpack:"data"`
+	// Ident is who asked (a user or API key identity), for the Extension's
+	// audit log only. It is never an authorization input: the platform has
+	// already authorized every organization in OIDs.
+	Ident string `json:"ident,omitempty" msgpack:"ident,omitempty"`
 }
 
 type ResourceState struct {
