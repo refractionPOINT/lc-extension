@@ -17,6 +17,7 @@ const (
 	fleetAction = "fleet_read"
 	fleetOID1   = "0f2c8d7e-1111-4a2b-9c3d-000000000001"
 	fleetOID2   = "0f2c8d7e-1111-4a2b-9c3d-000000000002"
+	errNotUUID  = "not a lowercase UUID"
 )
 
 type fleetData struct {
@@ -58,7 +59,7 @@ func newFleetExtension(t *testing.T, fc *fleetCall) *Extension {
 			},
 			RequestHandlers: map[common.ActionName]RequestCallback{
 				testAction: {Callback: func(context.Context, RequestCallbackParams) common.Response {
-					return common.Response{Data: limacharlie.Dict{"pong": true}}
+					return common.Response{Data: limacharlie.Dict{"ok": true}}
 				}},
 			},
 		},
@@ -209,10 +210,12 @@ func TestFleetRequestRefusals(t *testing.T) {
 		{"empty oids", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{}}, 400, "no organization"},
 		{"too many oids", &common.FleetRequestMessage{Action: fleetAction, OIDs: tooMany}, 400, "the most is 1000"},
 		{"exactly the most", &common.FleetRequestMessage{Action: fleetAction, OIDs: atMost}, 200, ""},
-		{"not a uuid", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{fleetOID1, "oid-1"}}, 400, "organization 1 is not a lowercase UUID"},
-		{"uppercase uuid", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{strings.ToUpper(fleetOID1)}}, 400, "not a lowercase UUID"},
-		{"uuid with a suffix", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{fleetOID1 + "0"}}, 400, "not a lowercase UUID"},
-		{"empty oid", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{""}}, 400, "not a lowercase UUID"},
+		{"not a uuid", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{fleetOID1, "not-a-uuid"}}, 400, "organization 1 is not a lowercase UUID"},
+		{"uppercase uuid", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{strings.ToUpper(fleetOID1)}}, 400, errNotUUID},
+		{"uuid with a suffix", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{fleetOID1 + "0"}}, 400, errNotUUID},
+		{"duplicate oid", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{fleetOID1, fleetOID1}}, 400, "duplicate or out of order"},
+		{"unsorted oids", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{fleetOID2, fleetOID1}}, 400, "duplicate or out of order"},
+		{"empty oid", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{""}}, 400, errNotUUID},
 		{"data of the wrong shape", &common.FleetRequestMessage{Action: fleetAction, OIDs: []string{fleetOID1}, Data: limacharlie.Dict{"rows": "yes"}}, 400, "failed to unmarshal request data"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -243,9 +246,27 @@ func TestFleetRequestRefusals(t *testing.T) {
 	}
 }
 
+// An Extension without an ErrorHandler answers a refusal like any other.
+func TestFleetRefusalWithoutErrorHandler(t *testing.T) {
+	fc := &fleetCall{}
+	ext := newFleetExtension(t, fc)
+	ext.Callbacks.ErrorHandler = nil
+	for _, fr := range []*common.FleetRequestMessage{
+		{Action: fleetAction},
+		{Action: "nope", OIDs: []string{fleetOID1}},
+		{Action: fleetAction, OIDs: []string{"x"}},
+	} {
+		msg := fleetBody(t, fr)
+		if rec := post(ext, msg, sign(msg), false); rec.Code != http.StatusBadRequest || fc.calls != 0 {
+			t.Fatalf("status %d calls %d: %s", rec.Code, fc.calls, rec.Body.String())
+		}
+	}
+}
+
 // A fleet section next to any other section is refused whole.
 func TestFleetRequestMustBeAlone(t *testing.T) {
 	for name, other := range map[string]common.Message{
+		"heartbeat":  {HeartBeat: &common.HeartBeatMessage{}},
 		"request":    {Request: &common.RequestMessage{Org: common.OrgAccessData{OID: "o"}, Action: testAction}},
 		"event":      {Event: &common.EventMessage{Org: common.OrgAccessData{OID: "o"}}},
 		"error":      {ErrorReport: &common.ErrorReportMessage{Error: "e"}},
@@ -407,8 +428,24 @@ func TestRequestStillWorksNextToFleetHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 	ext.OrgFromAccess = func(common.OrgAccessData) (*limacharlie.Organization, error) { return org, nil }
+	var got RequestCallbackParams
+	ext.Callbacks.RequestHandlers[testAction] = RequestCallback{Callback: func(_ context.Context, p RequestCallbackParams) common.Response {
+		got = p
+		return common.Response{Data: limacharlie.Dict{"ok": true}}
+	}}
 	msg := pingMessage(t)
-	if rec := post(ext, msg, sign(msg), false); rec.Code != http.StatusOK || fc.calls != 0 {
+	rec := post(ext, msg, sign(msg), false)
+	if rec.Code != http.StatusOK || fc.calls != 0 {
 		t.Fatalf("status %d fleet calls %d: %s", rec.Code, fc.calls, rec.Body.String())
+	}
+	if got.Org != org || got.Ident != testIdent || got.IdempotentKey != testIdem || got.Request.(limacharlie.Dict)["k"] != "v" {
+		t.Fatalf("per-organization params %+v", got)
+	}
+	var resp common.Response
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := resp.Data.(map[string]interface{}); d["ok"] != true {
+		t.Fatalf("response %+v", resp)
 	}
 }

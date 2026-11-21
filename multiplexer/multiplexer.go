@@ -177,7 +177,7 @@ func init() {
 			ExtensionName:  en,
 			SecretKey:      secret,
 			ConfigSchema:   srResp.Config,
-			RequestSchema:  srResp.Request,
+			RequestSchema:  withoutFleetActions(srResp.Request),
 			ViewsSchema:    srResp.Views,
 			RequiredEvents: srResp.RequiredEvents,
 		},
@@ -685,4 +685,20 @@ func signForSelf(secret []byte, data []byte) string {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(data)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// withoutFleetActions drops the fleet actions of a wrapped Extension from the
+// schema the multiplexer republishes. The multiplexer runs one service per
+// organization, so it cannot fan a fleet request out; leaving the actions out
+// keeps it from advertising what it cannot answer, and from registering a
+// per-organization handler for an action that only answers fleet requests.
+func withoutFleetActions(in common.RequestSchemas) common.RequestSchemas {
+	out := make(common.RequestSchemas, len(in))
+	for name, schema := range in {
+		if schema.IsFleet {
+			continue
+		}
+		out[name] = schema
+	}
+	return out
 }

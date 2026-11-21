@@ -21,7 +21,8 @@ type FleetRequestCallbackParams struct {
 	// OIDs are the organizations the read covers. LimaCharlie has already
 	// decided that the asker may see all of them, so the list is authoritative.
 	// The SDK has checked that there is at least one and at most
-	// common.MaxFleetRequestOIDs, and that each is a lowercase UUID.
+	// common.MaxFleetRequestOIDs, that each is a lowercase UUID, and that the
+	// list is strictly ascending (so without duplicates).
 	OIDs []string
 	// Request is the decoded action parameters (a *RequestStruct when the
 	// callback declares one, a limacharlie.Dict otherwise).
@@ -81,13 +82,15 @@ func (e *Extension) handleFleetRequest(ctx context.Context, message *common.Mess
 
 	refuse := func(format string, args ...interface{}) (common.Response, int) {
 		response.Error = fmt.Sprintf(format, args...)
-		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
+		if e.Callbacks.ErrorHandler != nil {
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error})
+		}
 		return response, http.StatusBadRequest
 	}
 
 	// The fleet section is the whole message: a crafted envelope that also
 	// carries a per-organization section is never half handled.
-	if message.Request != nil || message.Event != nil || message.ErrorReport != nil ||
+	if message.HeartBeat != nil || message.Request != nil || message.Event != nil || message.ErrorReport != nil ||
 		message.ConfigValidation != nil || message.SchemaRequest != nil {
 		return refuse("a fleet request must be the only section of its message")
 	}
@@ -112,6 +115,11 @@ func (e *Extension) handleFleetRequest(ctx context.Context, message *common.Mess
 		if !isCanonicalUUID(oid) {
 			return refuse("fleet request organization %d is not a lowercase UUID", i)
 		}
+		// Sorted ascending without duplicates, as the message documents: a
+		// handler may merge or count on it.
+		if i > 0 && oid <= fr.OIDs[i-1] {
+			return refuse("fleet request organization %d is a duplicate or out of order", i)
+		}
 	}
 
 	data := fr.Data
@@ -119,7 +127,7 @@ func (e *Extension) handleFleetRequest(ctx context.Context, message *common.Mess
 		data = limacharlie.Dict{}
 	}
 	var request interface{} = data
-	if cb.RequestStruct != nil && !(reflect.ValueOf(cb.RequestStruct).Kind() == reflect.Ptr && reflect.ValueOf(cb.RequestStruct).IsNil()) {
+	if cb.RequestStruct != nil && !(reflect.ValueOf(cb.RequestStruct).Kind() == reflect.Pointer && reflect.ValueOf(cb.RequestStruct).IsNil()) {
 		var err error
 		request, err = unmarshalToStruct(data, cb.RequestStruct)
 		if err != nil {
@@ -150,7 +158,7 @@ func isCanonicalUUID(s string) bool {
 				return false
 			}
 		default:
-			if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') {
+			if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 				return false
 			}
 		}

@@ -172,7 +172,9 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if message.HeartBeat != nil {
+	// A message that carries a fleet section is never taken for a heartbeat:
+	// handleFleetRequest refuses it whole when it carries anything else.
+	if message.HeartBeat != nil && message.FleetRequest == nil {
 		e.respondAndLog(w, http.StatusOK, &common.HeartBeatResponse{}) //nolint:errcheck
 		return
 	}
@@ -181,7 +183,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Reached only after the signature above, like every other message.
 		fleetResponse, status := e.handleFleetRequest(ctx, &message)
 		if status != 0 {
-			e.respondAndLog(w, status, &fleetResponse) //nolint:errcheck
+			_ = e.respondAndLog(w, status, &fleetResponse)
 			return
 		}
 		response = fleetResponse
