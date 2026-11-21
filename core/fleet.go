@@ -127,7 +127,7 @@ func (e *Extension) handleFleetRequest(ctx context.Context, message *common.Mess
 		data = limacharlie.Dict{}
 	}
 	var request interface{} = data
-	if cb.RequestStruct != nil && !(reflect.ValueOf(cb.RequestStruct).Kind() == reflect.Pointer && reflect.ValueOf(cb.RequestStruct).IsNil()) {
+	if rs := reflect.ValueOf(cb.RequestStruct); rs.IsValid() && (rs.Kind() != reflect.Pointer || !rs.IsNil()) {
 		var err error
 		request, err = unmarshalToStruct(data, cb.RequestStruct)
 		if err != nil {
