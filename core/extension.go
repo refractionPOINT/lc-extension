@@ -89,6 +89,12 @@ type ExtensionCallbacks struct {
 	RequestHandlers map[common.ActionName]RequestCallback                                              // Optional
 	EventHandlers   map[common.EventName]EventCallback
 	ErrorHandler    func(*common.ErrorReportMessage)
+	// FleetRequestHandlers answer a fleet request: one read about several
+	// organizations at once. An action here must be declared IsFleet in
+	// RequestSchema (and the other way around), and must not also have a
+	// RequestHandlers entry. Optional: an Extension with none never receives
+	// a fleet request.
+	FleetRequestHandlers map[common.ActionName]FleetRequestCallback
 }
 
 type RequestCallbackParams struct {
@@ -128,7 +134,7 @@ type EventCallback = func(ctx context.Context, params EventCallbackParams) commo
 func (e *Extension) Init() error {
 	e.whClients = map[string]*limacharlie.WebhookSender{}
 	e.isLogAllErrors = os.Getenv("LC_EXTENSION_LOG_ALL_ERRORS") != ""
-	return nil
+	return e.validateFleetHandlers()
 }
 
 func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +177,15 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if message.Event != nil {
+	if message.FleetRequest != nil {
+		// Reached only after the signature above, like every other message.
+		fleetResponse, status := e.handleFleetRequest(ctx, &message)
+		if status != 0 {
+			e.respondAndLog(w, status, &fleetResponse) //nolint:errcheck
+			return
+		}
+		response = fleetResponse
+	} else if message.Event != nil {
 		org, err := e.generateSDK(message.Event.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
