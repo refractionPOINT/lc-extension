@@ -31,7 +31,15 @@ type RequestSchema struct {
 	// verified in-cluster origin, never a caller-supplied field): the action then runs with the
 	// extension's own credential, and the request carries the rule's name in RequestMessage.AutomationRule.
 	// A request from a person or an API key is unaffected: it still has to bring the JWT it acts with.
-	AllowAutomation      bool          `json:"allow_automation,omitempty" msgpack:"allow_automation,omitempty"`
+	AllowAutomation bool `json:"allow_automation,omitempty" msgpack:"allow_automation,omitempty"`
+	// IsFleet marks an action that answers a FleetRequestMessage: one read
+	// about several organizations at once. LimaCharlie sends a fleet request
+	// only for an action declared this way, and refuses an ordinary
+	// single-organization request for it, so a fleet action is reachable only
+	// through the fleet path. It should not be user facing (IsUserFacing
+	// false): it has no single organization to show in. Internal to
+	// LimaCharlie for now, like FleetRequestMessage.
+	IsFleet              bool          `json:"fleet,omitempty" msgpack:"fleet,omitempty"`
 	ParameterDefinitions SchemaObject  `json:"parameters" msgpack:"parameters"` // List of Parameter Names and their definition.
 	ResponseDefinition   *SchemaObject `json:"response" msgpack:"response"`     // Schema of the expected Response.
 }
