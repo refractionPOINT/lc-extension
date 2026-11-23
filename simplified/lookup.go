@@ -3,6 +3,7 @@ package simplified
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
@@ -12,7 +13,11 @@ import (
 
 const (
 	updateRuleHive = "dr-managed"
+	lookupHive     = "lookup"
 	lookupDataKey  = "lookup_data"
+	// recordNotFound is the error code of an operation on a record that is
+	// not in Hive.
+	recordNotFound = "RECORD_NOT_FOUND"
 )
 
 type (
@@ -116,45 +121,8 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 				org := params.Org
 				l.Logger.Info(fmt.Sprintf("unsubscribe from %s", org.GetOID()))
 
-				// Remove the D&R rule we set up.
-				h := limacharlie.NewHiveClient(org)
-				if _, err := h.Remove(limacharlie.HiveArgs{
-					HiveName:     updateRuleHive,
-					PartitionKey: org.GetOID(),
-					Key:          l.ruleName,
-				}); err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to remove D&R rule: %s", err.Error()))
+				if err := l.removeOrgResources(limacharlie.NewHiveClient(org), org.GetOID()); err != nil {
 					return common.Response{Error: err.Error()}
-				}
-
-				// We also remove the lookups.
-				lookups, err := h.ListMtd(limacharlie.HiveArgs{
-					HiveName:     "lookup",
-					PartitionKey: org.GetOID(),
-				})
-				if err != nil {
-					l.Logger.Error(fmt.Sprintf("failed to list lookups: %s", err.Error()))
-					return common.Response{Error: err.Error()}
-				}
-				for luName, luData := range lookups {
-					isRemove := false
-					for _, t := range luData.UsrMtd.Tags {
-						if t == l.tag {
-							isRemove = true
-							break
-						}
-					}
-					if !isRemove {
-						continue
-					}
-					if _, err := h.Remove(limacharlie.HiveArgs{
-						HiveName:     "lookup",
-						PartitionKey: org.GetOID(),
-						Key:          luName,
-					}); err != nil {
-						l.Logger.Error(fmt.Sprintf("failed to remove lookup %s: %s", luName, err.Error()))
-						return common.Response{Error: err.Error()}
-					}
 				}
 
 				if h, ok := l.EventHandlers[common.EventTypes.Unsubscribe]; ok {
@@ -184,6 +152,63 @@ func (l *LookupExtension) Init() (*core.Extension, error) {
 	}
 
 	return x, nil
+}
+
+// lookupCleaner is the part of the HiveClient used to remove what the
+// extension installed in an organization.
+type lookupCleaner interface {
+	Remove(args limacharlie.HiveArgs) (interface{}, error)
+	ListMtd(args limacharlie.HiveArgs) (limacharlie.HiveConfigData, error)
+}
+
+// isRecordNotFound reports whether an error is the platform answering that the
+// record is not in Hive.
+func isRecordNotFound(errMsg string) bool {
+	return strings.Contains(errMsg, recordNotFound)
+}
+
+// removeOrgResources removes the recurring update rule and the lookups the
+// extension installed in the organization. A record that is already gone is
+// what the removal is after, so unsubscribing stays safe to retry.
+func (l *LookupExtension) removeOrgResources(h lookupCleaner, oid string) error {
+	if _, err := h.Remove(limacharlie.HiveArgs{
+		HiveName:     updateRuleHive,
+		PartitionKey: oid,
+		Key:          l.ruleName,
+	}); err != nil && !isRecordNotFound(err.Error()) {
+		l.Logger.Error(fmt.Sprintf("failed to remove D&R rule: %s", err.Error()))
+		return fmt.Errorf("failed to remove D&R rule %s: %w", l.ruleName, err)
+	}
+
+	lookups, err := h.ListMtd(limacharlie.HiveArgs{
+		HiveName:     lookupHive,
+		PartitionKey: oid,
+	})
+	if err != nil {
+		l.Logger.Error(fmt.Sprintf("failed to list lookups: %s", err.Error()))
+		return fmt.Errorf("failed to list lookups: %w", err)
+	}
+	for luName, luData := range lookups {
+		isRemove := false
+		for _, t := range luData.UsrMtd.Tags {
+			if t == l.tag {
+				isRemove = true
+				break
+			}
+		}
+		if !isRemove {
+			continue
+		}
+		if _, err := h.Remove(limacharlie.HiveArgs{
+			HiveName:     lookupHive,
+			PartitionKey: oid,
+			Key:          luName,
+		}); err != nil && !isRecordNotFound(err.Error()) {
+			l.Logger.Error(fmt.Sprintf("failed to remove lookup %s: %s", luName, err.Error()))
+			return fmt.Errorf("failed to remove lookup %s: %w", luName, err)
+		}
+	}
+	return nil
 }
 
 // asDict reuses lookup data that is already a map instead of copying it.
@@ -231,7 +256,7 @@ func (l *LookupExtension) onUpdate(ctx context.Context, params core.RequestCallb
 			// Push the update.
 			isTrue := true
 			if _, err := h.Add(limacharlie.HiveArgs{
-				HiveName:     "lookup",
+				HiveName:     lookupHive,
 				PartitionKey: params.Org.GetOID(),
 				Key:          luName,
 				Data: limacharlie.Dict{
