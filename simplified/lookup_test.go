@@ -80,6 +80,7 @@ func TestAsDictRejectsNonMaps(t *testing.T) {
 type fakeLookupCleaner struct {
 	stored     limacharlie.HiveConfigData
 	removeErrs map[string]error
+	listErr    error
 	removed    []string
 }
 
@@ -92,6 +93,9 @@ func (h *fakeLookupCleaner) Remove(args limacharlie.HiveArgs) (interface{}, erro
 }
 
 func (h *fakeLookupCleaner) ListMtd(args limacharlie.HiveArgs) (limacharlie.HiveConfigData, error) {
+	if h.listErr != nil {
+		return nil, h.listErr
+	}
 	return h.stored, nil
 }
 
@@ -171,4 +175,15 @@ func TestRemoveOrgResourcesFailsOnOtherRemoveErrors(t *testing.T) {
 			require.Len(t, l.Logger.(*recordingLogger).errors, 1)
 		})
 	}
+}
+
+func TestRemoveOrgResourcesFailsWhenLookupsCannotBeListed(t *testing.T) {
+	h := newTestLookupCleaner(nil)
+	h.listErr = errors.New("api error: 503 Service Unavailable")
+	l := newTestLookupExtension()
+
+	err := l.removeOrgResources(h, "oid")
+	require.ErrorIs(t, err, h.listErr)
+	require.Equal(t, []string{testLookupRule}, h.removed)
+	require.Len(t, l.Logger.(*recordingLogger).errors, 1)
 }

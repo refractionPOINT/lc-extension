@@ -212,11 +212,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				if err != nil {
 					l.Logger.Error(fmt.Sprintf("failed to remove rules: %s", err.Error()))
 				}
-				for _, op := range ops {
-					if op.Error != "" && !strings.Contains(op.Error, "RECORD_NOT_FOUND") {
-						l.Logger.Error(fmt.Sprintf("failed to remove rule: %s", op.Error))
-					}
-				}
+				logFailedRuleRemovals(l.Logger, ops)
 
 				if h, ok := l.EventHandlers[common.EventTypes.Unsubscribe]; ok {
 					if resp := h(ctx, params); resp.Error != "" {
@@ -245,6 +241,16 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 	}
 
 	return x, nil
+}
+
+// logFailedRuleRemovals logs the operations of a rule removal batch that
+// failed. A rule that is already gone is not a failure.
+func logFailedRuleRemovals(logger limacharlie.LCLogger, ops []limacharlie.BatchResponse) {
+	for _, op := range ops {
+		if op.Error != "" && !isRecordNotFound(op.Error) {
+			logger.Error(fmt.Sprintf("failed to remove rule: %s", op.Error))
+		}
+	}
 }
 
 func (l *RuleExtension) onUpdate(ctx context.Context, params core.RequestCallbackParams) common.Response {
