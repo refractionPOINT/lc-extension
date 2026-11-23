@@ -214,7 +214,7 @@ func (l *RuleExtension) Init() (*core.Extension, error) {
 				}
 				for _, op := range ops {
 					if op.Error != "" && !strings.Contains(op.Error, "RECORD_NOT_FOUND") {
-						l.Logger.Error(fmt.Sprintf("failed to remove rule: %s", err.Error()))
+						l.Logger.Error(fmt.Sprintf("failed to remove rule: %s", op.Error))
 					}
 				}
 
