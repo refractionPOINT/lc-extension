@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSuppression(t *testing.T) {
@@ -20,4 +21,16 @@ func TestSuppression(t *testing.T) {
 	if final != expected {
 		t.Errorf("unexpected suppression: %s\n!=\n%s", final, expected)
 	}
+}
+
+func TestLogFailedRuleRemovalsSkipsRulesAlreadyGone(t *testing.T) {
+	logger := &recordingLogger{}
+
+	logFailedRuleRemovals(logger, []limacharlie.BatchResponse{
+		{},
+		{Error: "lc_error_code:RECORD_NOT_FOUND - record name 'dr-general:oid:gone'"},
+		{Error: "lc_error_code:UNAUTHORIZED"},
+	})
+
+	require.Equal(t, []string{"failed to remove rule: lc_error_code:UNAUTHORIZED"}, logger.errors)
 }

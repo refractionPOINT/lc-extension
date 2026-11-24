@@ -2,6 +2,7 @@ package simplified
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/refractionPOINT/go-limacharlie/limacharlie"
@@ -72,4 +73,117 @@ func TestAsDictRejectsNonMaps(t *testing.T) {
 		_, ok := asDict(v)
 		require.False(t, ok, "expected fall-through for %T", v)
 	}
+}
+
+// fakeLookupCleaner serves the lookups in stored and answers a removal with
+// the error in removeErrs for that key, if any.
+type fakeLookupCleaner struct {
+	stored     limacharlie.HiveConfigData
+	removeErrs map[string]error
+	listErr    error
+	removed    []string
+}
+
+func (h *fakeLookupCleaner) Remove(args limacharlie.HiveArgs) (interface{}, error) {
+	if err, ok := h.removeErrs[args.Key]; ok {
+		return nil, err
+	}
+	h.removed = append(h.removed, args.Key)
+	return nil, nil
+}
+
+func (h *fakeLookupCleaner) ListMtd(args limacharlie.HiveArgs) (limacharlie.HiveConfigData, error) {
+	if h.listErr != nil {
+		return nil, h.listErr
+	}
+	return h.stored, nil
+}
+
+const (
+	testLookupRule  = "ext-test-update"
+	testLookupTag   = "ext:test"
+	testLookupOurs1 = "ours-1"
+	testLookupOurs2 = "ours-2"
+)
+
+func newTestLookupCleaner(removeErrs map[string]error) *fakeLookupCleaner {
+	tagged := limacharlie.HiveData{UsrMtd: limacharlie.UsrMtd{Tags: []string{testLookupTag}}}
+	return &fakeLookupCleaner{
+		stored: limacharlie.HiveConfigData{
+			testLookupOurs1: tagged,
+			testLookupOurs2: tagged,
+			"theirs":        {UsrMtd: limacharlie.UsrMtd{Tags: []string{"ext:other"}}},
+		},
+		removeErrs: removeErrs,
+	}
+}
+
+func newTestLookupExtension() *LookupExtension {
+	return &LookupExtension{
+		Name:     "test",
+		Logger:   &recordingLogger{},
+		tag:      testLookupTag,
+		ruleName: testLookupRule,
+	}
+}
+
+func recordNotFoundErr(key string) error {
+	return errors.New("api error: 400 Bad Request: lc_error_code:RECORD_NOT_FOUND - record name '" + key + "'")
+}
+
+func TestRemoveOrgResourcesSucceedsWhenRecordsAreAlreadyGone(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		gone        []string
+		wantRemoved []string
+	}{
+		{"rule gone", []string{testLookupRule}, []string{testLookupOurs1, testLookupOurs2}},
+		{"lookup gone", []string{testLookupOurs1}, []string{testLookupRule, testLookupOurs2}},
+		{"rule and lookups gone", []string{testLookupRule, testLookupOurs1, testLookupOurs2}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			removeErrs := map[string]error{}
+			for _, key := range tc.gone {
+				removeErrs[key] = recordNotFoundErr(key)
+			}
+			h := newTestLookupCleaner(removeErrs)
+			l := newTestLookupExtension()
+
+			require.NoError(t, l.removeOrgResources(h, "oid"))
+			require.ElementsMatch(t, tc.wantRemoved, h.removed)
+			require.Empty(t, l.Logger.(*recordingLogger).errors)
+		})
+	}
+}
+
+func TestRemoveOrgResourcesFailsOnOtherRemoveErrors(t *testing.T) {
+	denied := errors.New("api error: 403 Forbidden: lc_error_code:UNAUTHORIZED")
+	for _, tc := range []struct {
+		name string
+		key  string
+	}{
+		{"rule", testLookupRule},
+		{"lookup", testLookupOurs1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newTestLookupCleaner(map[string]error{tc.key: denied})
+			l := newTestLookupExtension()
+
+			err := l.removeOrgResources(h, "oid")
+			require.ErrorIs(t, err, denied)
+			require.ErrorContains(t, err, tc.key)
+			require.Len(t, l.Logger.(*recordingLogger).errors, 1)
+		})
+	}
+}
+
+func TestRemoveOrgResourcesFailsWhenLookupsCannotBeListed(t *testing.T) {
+	h := newTestLookupCleaner(nil)
+	h.listErr = errors.New("api error: 503 Service Unavailable")
+	l := newTestLookupExtension()
+
+	err := l.removeOrgResources(h, "oid")
+	require.ErrorIs(t, err, h.listErr)
+	require.Equal(t, []string{testLookupRule}, h.removed)
+	require.Len(t, l.Logger.(*recordingLogger).errors, 1)
 }
