@@ -563,9 +563,9 @@ func (e *Multiplexer) forwardRequest(ctx context.Context, action string, params 
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
 	startTime := time.Now()
-	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	response, err := e.forwardScrubbed(ctx, []byte(secret), serviceURL, newReq, body)
 	if err != nil {
-		return nil, fmt.Errorf("forwardHTTP: %v", err)
+		return nil, err
 	}
 	if e.HookResponse != nil {
 		response, err = e.HookResponse(ctx, e, params.Org, newReq, response, startTime)
@@ -600,9 +600,9 @@ func (e *Multiplexer) forwardConfigValidation(ctx context.Context, org *limachar
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
 	startTime := time.Now()
-	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	response, err := e.forwardScrubbed(ctx, []byte(secret), serviceURL, newReq, body)
 	if err != nil {
-		return nil, fmt.Errorf("forwardHTTP: %v", err)
+		return nil, err
 	}
 	if e.HookResponse != nil {
 		response, err = e.HookResponse(ctx, e, org, newReq, response, startTime)
@@ -642,9 +642,9 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
 	startTime := time.Now()
-	response, err := forwardHTTP(ctx, []byte(secret), e.httpClient, serviceURL, body)
+	response, err := e.forwardScrubbed(ctx, []byte(secret), serviceURL, newReq, body)
 	if err != nil {
-		return nil, fmt.Errorf("forwardHTTP: %v", err)
+		return nil, err
 	}
 	if e.HookResponse != nil {
 		response, err = e.HookResponse(ctx, e, params.Org, newReq, response, startTime)
@@ -652,6 +652,21 @@ func (e *Multiplexer) forwardEvent(ctx context.Context, eventName common.EventNa
 			return nil, fmt.Errorf("HookResponse: %v", err)
 		}
 	}
+	return response, nil
+}
+
+// forwardScrubbed forwards an envelope to a worker, scrubbing the worker's
+// error and any transport error of the envelope's Secret values. They are
+// classified on the envelope as forwarded, after the hooks: a hook may put a
+// credential in (an API key exchanged for a token), and the worker can echo
+// what it received.
+func (e *Multiplexer) forwardScrubbed(ctx context.Context, secret []byte, serviceURL string, newReq *common.Message, body []byte) (*common.Response, error) {
+	hidden := e.MessageSecretValues(newReq)
+	response, err := forwardHTTP(ctx, secret, e.httpClient, serviceURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("forwardHTTP: %s", core.ScrubSecrets(err.Error(), hidden))
+	}
+	response.Error = core.ScrubSecrets(response.Error, hidden)
 	return response, nil
 }
 
@@ -675,7 +690,9 @@ func forwardHTTP(ctx context.Context, secret []byte, client *http.Client, servic
 
 	response := &common.Response{}
 	if err := json.Unmarshal(bodyBytes, response); err != nil {
-		return nil, fmt.Errorf("json.Unmarshal: %v (received: %s)", err, string(bodyBytes))
+		// The body is not part of the error: it can echo the request, Secret
+		// parameters included, and this error is logged and passed on.
+		return nil, fmt.Errorf("json.Unmarshal: %v (HTTP %d, %d-byte body not shown)", err, resp.StatusCode, len(bodyBytes))
 	}
 
 	return response, nil

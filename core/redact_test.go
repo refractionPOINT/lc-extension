@@ -1,0 +1,132 @@
+package core
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/refractionPOINT/go-limacharlie/limacharlie"
+	"github.com/refractionPOINT/lc-extension/common"
+)
+
+// Obviously fake values: none is a real key or token.
+const (
+	fakeSecretParam = "FAKE-SECRET-PARAM-VALUE-0001"
+	fakeOrgJWT      = "FAKE-ORG-JWT-VALUE-0002"
+	echoAction      = "echo"
+	keyParam        = "key"
+	testOID         = "oid-test"
+)
+
+// A request callback that echoes a Secret parameter in its error, or panics
+// with it, gets it into neither the error report nor the HTTP answer.
+func TestCallbackErrorAndPanicCarryNoSecret(t *testing.T) {
+	for name, cb := range map[string]func(ctx context.Context, params RequestCallbackParams) common.Response{
+		"error": func(ctx context.Context, params RequestCallbackParams) common.Response {
+			d := params.Request.(limacharlie.Dict)
+			return common.Response{Error: "bad key " + d[keyParam].(string) + " for " + fakeOrgJWT}
+		},
+		"panic": func(ctx context.Context, params RequestCallbackParams) common.Response {
+			d := params.Request.(limacharlie.Dict)
+			panic("bad key " + d[keyParam].(string))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ext, ms := newTestExtension(t)
+			defer ms.Close()
+			var reports []string
+			ext.Callbacks.ErrorHandler = func(r *common.ErrorReportMessage) { reports = append(reports, r.Error) }
+			ext.isLogAllErrors = true
+			ext.RequestSchema = common.RequestSchemas{echoAction: {ParameterDefinitions: common.SchemaObject{Fields: map[string]common.SchemaElement{
+				keyParam: {DataType: common.SchemaDataTypes.Secret},
+			}}}}
+			ext.Callbacks.RequestHandlers = map[common.ActionName]RequestCallback{echoAction: {Callback: cb}}
+
+			body, _ := json.Marshal(&common.Message{Version: PROTOCOL_VERSION, Request: &common.RequestMessage{
+				Org:    common.OrgAccessData{OID: testOID, JWT: fakeOrgJWT},
+				Action: echoAction,
+				Data:   limacharlie.Dict{keyParam: fakeSecretParam},
+			}})
+			mac := hmac.New(sha256.New, []byte(testSecret))
+			mac.Write(body)
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+			req.Header.Set("lc-ext-sig", hex.EncodeToString(mac.Sum(nil)))
+			rec := httptest.NewRecorder()
+			ext.ServeHTTP(rec, req)
+
+			captured := rec.Body.String() + strings.Join(reports, "\n")
+			if len(reports) == 0 || rec.Code < 400 {
+				t.Fatalf("expected the failure answered and reported: %d %s", rec.Code, captured)
+			}
+			for _, v := range []string{fakeSecretParam, fakeOrgJWT} {
+				if strings.Contains(captured, v) {
+					t.Fatalf("a secret reached the answer or the report: %s", captured)
+				}
+			}
+		})
+	}
+}
+
+func TestScrubSecretsShortValueWithholdsText(t *testing.T) {
+	if got := scrubSecrets("pin 123 refused", []string{"123"}); strings.Contains(got, "123") {
+		t.Fatalf("a short secret survived: %q", got)
+	}
+}
+
+// strictKey rejects any value, quoting it in its error, as a typed request
+// decoder may.
+type strictKey string
+
+func (k *strictKey) UnmarshalJSON(b []byte) error {
+	return fmt.Errorf("rejected key %s", string(b))
+}
+
+// An error produced before the callback (a typed request decoder quoting the
+// value it rejected), and an echo in JSON-escaped form, are scrubbed too.
+func TestDecoderErrorAndEscapedEchoCarryNoSecret(t *testing.T) {
+	const quoted = "FAKE\"QUOTED-SECRET-0003"
+	for name, handler := range map[string]RequestCallback{
+		"decoder": {RequestStruct: &struct {
+			Key strictKey `json:"key"`
+		}{}, Callback: func(ctx context.Context, params RequestCallbackParams) common.Response { return common.Response{} }},
+		"escaped": {Callback: func(ctx context.Context, params RequestCallbackParams) common.Response {
+			b, _ := json.Marshal(params.Request.(limacharlie.Dict)[keyParam])
+			return common.Response{Error: fmt.Sprintf("bad key %s / %q", b, quoted)}
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ext, ms := newTestExtension(t)
+			defer ms.Close()
+			var reports []string
+			ext.Callbacks.ErrorHandler = func(r *common.ErrorReportMessage) { reports = append(reports, r.Error) }
+			ext.isLogAllErrors = true
+			ext.RequestSchema = common.RequestSchemas{echoAction: {ParameterDefinitions: common.SchemaObject{Fields: map[string]common.SchemaElement{
+				keyParam: {DataType: common.SchemaDataTypes.Secret},
+			}}}}
+			ext.Callbacks.RequestHandlers = map[common.ActionName]RequestCallback{echoAction: handler}
+			body, _ := json.Marshal(&common.Message{Version: PROTOCOL_VERSION, Request: &common.RequestMessage{
+				Org: common.OrgAccessData{OID: testOID, JWT: fakeOrgJWT}, Action: echoAction, Data: limacharlie.Dict{keyParam: quoted},
+			}})
+			mac := hmac.New(sha256.New, []byte(testSecret))
+			mac.Write(body)
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+			req.Header.Set("lc-ext-sig", hex.EncodeToString(mac.Sum(nil)))
+			rec := httptest.NewRecorder()
+			ext.ServeHTTP(rec, req)
+			captured := rec.Body.String() + strings.Join(reports, "\n")
+			if rec.Code < 400 {
+				t.Fatalf("expected a refusal: %d %s", rec.Code, captured)
+			}
+			if strings.Contains(captured, "QUOTED") {
+				t.Fatalf("a secret form reached the answer or a report: %s", captured)
+			}
+		})
+	}
+}

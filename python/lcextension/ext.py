@@ -39,6 +39,87 @@ DEFAULT_MAX_BODY_BYTES = 16 << 20
 # bounds the memory one request can make the extension allocate.
 DEFAULT_MAX_DECODED_BODY_BYTES = 64 << 20
 
+# Printed in place of a value that may be a secret. Fixed: never a prefix, a
+# length or a hash of the value.
+REDACTED_MARKER = '[REDACTED]'
+
+def _redactBySchema(values: Any, schema: Optional[SchemaObject]) -> Any:
+    '''Return a copy of values (a dict of parameters or config fields) for a log:
+    a field the schema declares Secret-typed, or does not declare, has its value
+    replaced by REDACTED_MARKER; an object field is redacted by its own schema.
+    Without a schema, every value is replaced.'''
+    if not isinstance(values, dict):
+        return None if values is None else REDACTED_MARKER
+    out = {}
+    for k, v in values.items():
+        element = None if schema is None else schema.Fields.get(k, None)
+        if v is None:
+            out[k] = None
+        elif element is None or element.DataType == SchemaDataTypes.Secret:
+            out[k] = REDACTED_MARKER
+        elif element.ObjectSchema is not None:
+            if element.IsList and isinstance(v, list):
+                out[k] = [_redactBySchema(i, element.ObjectSchema) for i in v]
+            else:
+                out[k] = _redactBySchema(v, element.ObjectSchema)
+        else:
+            out[k] = v
+    return out
+
+# The shortest Secret value _scrubSecrets replaces in place: a shorter one (a
+# PIN) would mangle unrelated text, so a text containing it is withheld whole.
+_MIN_REPLACED_SECRET_LEN = 4
+_WITHHELD_TEXT = 'details withheld: they may contain a Secret parameter'
+
+def _collectSecrets(values: Any, schema: Optional[SchemaObject], out: List[str]) -> None:
+    '''Append to out the values of values (a dict) that the schema declares
+    Secret-typed, in lists and object fields too.'''
+    if not isinstance(values, dict) or schema is None:
+        return
+    for k, v in values.items():
+        element = schema.Fields.get(k, None)
+        if element is None or v is None:
+            continue
+        for item in (v if isinstance(v, list) else [v]):
+            if element.DataType == SchemaDataTypes.Secret:
+                if isinstance(item, str) and item:
+                    out.append(item)
+            elif element.ObjectSchema is not None:
+                if isinstance(item, str) and item.lstrip().startswith('{'):
+                    # An object sent as a JSON-object string, as the platform accepts.
+                    try:
+                        item = json.loads(item)
+                    except ValueError:
+                        continue
+                _collectSecrets(item, element.ObjectSchema, out)
+
+def _scrubSecrets(text: str, secrets: List[str]) -> str:
+    '''text with every occurrence of a value of secrets, as is or in its
+    JSON-escaped or repr form, replaced by REDACTED_MARKER, longest first. A
+    text containing a value too short to replace is withheld whole.'''
+    forms = set()
+    for v in secrets:
+        if v:
+            forms.update(f for f in (v, json.dumps(v)[1:-1], repr(v)[1:-1]) if f)
+    for f in sorted(forms, key=len, reverse=True):
+        if f not in text:
+            continue
+        if len(f) < _MIN_REPLACED_SECRET_LEN:
+            return _WITHHELD_TEXT
+        text = text.replace(f, REDACTED_MARKER)
+    return text
+
+def _scrubValue(value: Any, secrets: List[str]) -> Any:
+    '''A copy of value (decoded JSON) with _scrubSecrets applied to every
+    string, keys included.'''
+    if isinstance(value, str):
+        return _scrubSecrets(value, secrets)
+    if isinstance(value, dict):
+        return {_scrubSecrets(k, secrets) if isinstance(k, str) else k: _scrubValue(v, secrets) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_scrubValue(v, secrets) for v in value]
+    return value
+
 class _BodyTooLarge(Exception):
     pass
 
@@ -126,28 +207,39 @@ class Extension(object):
                 return json.dumps(Response(error = "request body too large").toJSON()), 413
             except _BadBody as e:
                 return json.dumps(Response(error = str(e)).toJSON()), 400
-            if self._isLogRequest:
-                self.log(f"request: {data}")
             if not isVerified:
+                if self._isLogRequest:
+                    # An unauthenticated body is not logged at all.
+                    self.log(f"request: <invalid signature, {len(data)} bytes, not logged>")
                 resp = json.dumps(Response(error = "invalid signature").toJSON())
                 return resp, 401
+            if self._isLogRequest:
+                self.log(f"request: {self._requestForLog(data)}")
             try:
                 data = json.loads(data)
             except:
                 pass
             else:
+                # Taken before the handler runs (it may change the request).
+                secrets = self._secretValues(data)
                 try:
                     resp = self._extRequestHandler(data)
                 except Exception as e:
-                    resp = Response(error = str(e))
-                    self.logCritical(f"exception: {str(e)}")
+                    # An exception's text can carry the request's secrets (a
+                    # handler or an SDK echoing its credential).
+                    text = _scrubSecrets(str(e), secrets)
+                    resp = Response(error = text)
+                    self.logCritical(f"exception: {text}")
+                # Nor does an error the handler answers with carry them.
+                if isinstance(resp.error, str):
+                    resp.error = _scrubSecrets(resp.error, secrets)
                 status = 200
                 if resp.error:
                     status = 500 if resp.is_retriable else 400
-                resp = json.dumps(resp.toJSON())
+                body = resp.toJSON()
                 if self._isLogResponse:
-                    self.log(f"response: {resp}")
-                return resp, status
+                    self.log(f"response: {json.dumps(_scrubValue(body, secrets))}")
+                return json.dumps(body), status
             resp = json.dumps(Response(error = "invalid request").toJSON())
             if self._isLogResponse:
                 self.log(f"response: {resp}")
@@ -185,6 +277,77 @@ class Extension(object):
         if not hmac.compare_digest(mac.hexdigest(), signature):
             return b"", False
         return b"".join(_gunzipChunks(raw, self._maxDecodedBodyBytes)), True
+
+    def _requestForLog(self, data: Union[str, bytes]) -> str:
+        '''Render a request body for the LOG_REQUEST debug log. Only metadata
+        (protocol version, idempotency key, section names, oid, ident, action,
+        event name) and the values the extension's schema declares non-Secret
+        (request parameters, config fields) are shown; every other value, the
+        org JWT included, is REDACTED_MARKER. A body that is not a JSON object
+        is not logged, only its size.'''
+        try:
+            msg = json.loads(data)
+            if not isinstance(msg, dict):
+                return f"<not a JSON object, {len(data)} bytes, not logged>"
+            # A Secret value copied into a value shown as is (an opaque
+            # object, a plain parameter) is caught by scrubbing the rendering.
+            return _scrubSecrets(json.dumps(self._messageForLog(msg)), self._secretValues(msg))
+        except Exception:
+            return f"<unrenderable request, {len(data)} bytes, not logged>"
+
+    def _messageForLog(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for section, body in msg.items():
+            if section in ('version', 'idempotency_key'):
+                out[section] = body if isinstance(body, (str, int)) else REDACTED_MARKER
+                continue
+            if not isinstance(body, dict):
+                out[section] = None if body is None else REDACTED_MARKER
+                continue
+            shown: Dict[str, Any] = {}
+            for k, v in body.items():
+                if k == 'org' and isinstance(v, dict):
+                    shown[k] = {ok: (ov if ok in ('oid', 'ident') and isinstance(ov, str) else (None if ov is None else REDACTED_MARKER)) for ok, ov in v.items()}
+                elif k in ('action', 'event_name', 'inv_id') and isinstance(v, str):
+                    shown[k] = v
+                elif k in ('config', 'conf'):
+                    shown[k] = _redactBySchema(v, self.configSchema)
+                elif k == 'data' and section == 'request':
+                    shown[k] = _redactBySchema(v, self._parameterSchema(body.get('action', None)))
+                else:
+                    shown[k] = None if v is None else REDACTED_MARKER
+            out[section] = shown
+        return out
+
+    def _parameterSchema(self, action: Any) -> Optional[SchemaObject]:
+        if not isinstance(action, str):
+            return None
+        schema = self.requestSchema.Actions.get(action, None)
+        return None if schema is None else schema.ParameterDefinitions
+
+    def _secretValues(self, msg: Any) -> List[str]:
+        '''Every Secret-typed value a request message carries: its org JWT, its
+        request parameters (by the action's schema) and its config (by the
+        config schema).'''
+        out: List[str] = []
+        try:
+            if not isinstance(msg, dict):
+                return out
+            for section in ('request', 'event', 'conf_validation'):
+                body = msg.get(section, None)
+                if not isinstance(body, dict):
+                    continue
+                org = body.get('org', None)
+                # A JWT is never a few characters; a shorter value is a placeholder.
+                if isinstance(org, dict) and isinstance(org.get('jwt', None), str) and len(org['jwt']) >= _MIN_REPLACED_SECRET_LEN:
+                    out.append(org['jwt'])
+                for confKey in ('config', 'conf'):
+                    _collectSecrets(body.get(confKey, None), self.configSchema, out)
+                if section == 'request':
+                    _collectSecrets(body.get('data', None), self._parameterSchema(body.get('action', None)), out)
+        except Exception:
+            pass
+        return out
 
     def _verifyOrigin(self, data: Union[str, bytes], signature: Union[str, bytes]) -> bool:
         if self._secret is None:

@@ -172,18 +172,39 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The Secret-typed values the message carries (by the schemas), taken
+	// before any callback runs: a callback's error is scrubbed of them before
+	// it is reported or answered.
+	hidden := e.messageSecretValues(&message)
+	// A callback's panic value can carry them too: it is reported with a fixed
+	// text instead of reaching the HTTP server's log.
+	defer func() {
+		if r := recover(); r != nil {
+			if e.Callbacks.ErrorHandler != nil {
+				// The report is a fixed text; a panic in the handler itself
+				// must not take the panic value elsewhere either.
+				func() {
+					defer func() { _ = recover() }()
+					e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: "panic handling a message (details not logged)"})
+				}()
+			}
+			_ = respond(w, http.StatusInternalServerError, &common.Response{Version: PROTOCOL_VERSION, Error: "internal error in the extension"})
+		}
+	}()
+
 	// A message that carries a fleet section is never taken for a heartbeat:
 	// handleFleetRequest refuses it whole when it carries anything else.
 	if message.HeartBeat != nil && message.FleetRequest == nil {
-		e.respondAndLog(w, http.StatusOK, &common.HeartBeatResponse{}) //nolint:errcheck
+		_ = e.respondScrubbed(w, hidden, http.StatusOK, &common.HeartBeatResponse{})
 		return
 	}
 
 	if message.FleetRequest != nil {
 		// Reached only after the signature above, like every other message.
 		fleetResponse, status := e.handleFleetRequest(ctx, &message)
+		fleetResponse.Error = scrubSecrets(fleetResponse.Error, hidden)
 		if status != 0 {
-			_ = e.respondAndLog(w, status, &fleetResponse)
+			_ = e.respondScrubbed(w, hidden, status, &fleetResponse)
 			return
 		}
 		response = fleetResponse
@@ -191,8 +212,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		org, err := e.generateSDK(message.Event.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
-			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
-			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: scrubSecrets(response.Error, hidden), Oid: message.Event.Org.OID})
+			_ = e.respondScrubbed(w, hidden, http.StatusInternalServerError, &response)
 			return
 		}
 		defer org.Close()
@@ -200,8 +221,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler, ok := e.Callbacks.EventHandlers[message.Event.EventName]
 		if !ok {
 			response.Error = fmt.Sprintf("unknown event: %s", message.Event.EventName)
-			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Event.Org.OID})
-			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: scrubSecrets(response.Error, hidden), Oid: message.Event.Org.OID})
+			_ = e.respondScrubbed(w, hidden, http.StatusBadRequest, &response)
 			return
 		}
 		response = handler(ctx, EventCallbackParams{
@@ -214,8 +235,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		org, err := e.generateSDK(message.Request.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
-			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: scrubSecrets(response.Error, hidden), Oid: message.Request.Org.OID})
+			_ = e.respondScrubbed(w, hidden, http.StatusInternalServerError, &response)
 			return
 		}
 		defer org.Close()
@@ -223,8 +244,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rcb, ok := e.Callbacks.RequestHandlers[message.Request.Action]
 		if !ok {
 			response.Error = fmt.Sprintf("unknown request action: %s", message.Request.Action)
-			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.Request.Org.OID})
-			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: scrubSecrets(response.Error, hidden), Oid: message.Request.Org.OID})
+			_ = e.respondScrubbed(w, hidden, http.StatusBadRequest, &response)
 			return
 		}
 		// If the request struct is nil, we will unmarshal into a dict.
@@ -236,7 +257,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			response.Error = fmt.Sprintf("failed to unmarshal request data: %v", err)
-			e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
+			_ = e.respondScrubbed(w, hidden, http.StatusBadRequest, &response)
 			return
 		}
 		response = rcb.Callback(ctx, RequestCallbackParams{
@@ -256,8 +277,8 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		org, err := e.generateSDK(message.ConfigValidation.Org)
 		if err != nil {
 			response.Error = fmt.Sprintf("failed initializing sdk: %v", err)
-			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: response.Error, Oid: message.ConfigValidation.Org.OID})
-			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
+			e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: scrubSecrets(response.Error, hidden), Oid: message.ConfigValidation.Org.OID})
+			_ = e.respondScrubbed(w, hidden, http.StatusInternalServerError, &response)
 			return
 		}
 		defer org.Close()
@@ -281,24 +302,35 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Keep request content out of both the response and the error callback.
 		response.Error = fmt.Sprintf("no recognized section in request (%d bytes)", len(requestData))
-		e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
+		_ = e.respondScrubbed(w, hidden, http.StatusBadRequest, &response)
 		return
 	}
 
+	response.Error = scrubSecrets(response.Error, hidden)
 	if response.Error != "" {
 		// TODO: In the future we should support more detailed error handling and error types such as
 		// validation error, etc. and return appropriate status code (e.g. 400 for validation error, etc.)
 		// For the time being we return 503 for retryable errors and 500 for non-retryable errors.
 		if response.IsRetriable() {
-			e.respondAndLog(w, http.StatusInternalServerError, &response) //nolint:errcheck
+			_ = e.respondScrubbed(w, hidden, http.StatusInternalServerError, &response)
 			return
 		}
 
-		e.respondAndLog(w, http.StatusBadRequest, &response) //nolint:errcheck
+		_ = e.respondScrubbed(w, hidden, http.StatusBadRequest, &response)
 		return
 	}
 	response.Version = PROTOCOL_VERSION
-	e.respondAndLog(w, http.StatusOK, &response) //nolint:errcheck
+	_ = e.respondScrubbed(w, hidden, http.StatusOK, &response)
+}
+
+// respondScrubbed is respondAndLog for a message whose Secret values are
+// known: every error answered or reported for it is scrubbed of them first,
+// whatever produced it (a callback, a request decoder, the SDK itself).
+func (e *Extension) respondScrubbed(w http.ResponseWriter, hidden []string, status int, data interface{}) error {
+	if r, ok := data.(*common.Response); ok && r.Error != "" {
+		r.Error = scrubSecrets(r.Error, hidden)
+	}
+	return e.respondAndLog(w, status, data)
 }
 
 func (e *Extension) respondAndLog(w http.ResponseWriter, status int, data interface{}) error {
@@ -308,7 +340,8 @@ func (e *Extension) respondAndLog(w http.ResponseWriter, status int, data interf
 		}
 	}
 	if err := respond(w, status, data); err != nil {
-		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: fmt.Sprintf("failed to respond: %v", err)})
+		// A marshalling error can quote the value it failed on.
+		e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: "failed to respond (details not logged)"})
 		return err
 	}
 	return nil
