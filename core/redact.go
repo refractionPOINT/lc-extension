@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/refractionPOINT/lc-extension/common"
@@ -61,10 +62,16 @@ func secretValues(fields map[string]common.SchemaElement, data map[string]interf
 // messageSecretValues is every Secret-typed value a message carries, by the
 // Extension's schemas: request and fleet parameters, config, config being
 // validated, and the org JWT.
+// MessageSecretValues is messageSecretValues for code built on an Extension
+// (the multiplexer classifies the envelope it forwards, after its hooks).
+func (e *Extension) MessageSecretValues(m *common.Message) []string {
+	return e.messageSecretValues(m)
+}
+
 func (e *Extension) messageSecretValues(m *common.Message) []string {
 	var out []string
 	if r := m.Request; r != nil {
-		out = append(out, r.Org.JWT)
+		out = appendOrgJWT(out, r.Org.JWT)
 		if def, ok := e.RequestSchema[r.Action]; ok {
 			out = secretValues(def.ParameterDefinitions.Fields, r.Data, out)
 		}
@@ -76,14 +83,19 @@ func (e *Extension) messageSecretValues(m *common.Message) []string {
 		}
 	}
 	if c := m.ConfigValidation; c != nil {
-		out = append(out, c.Org.JWT)
+		out = appendOrgJWT(out, c.Org.JWT)
 		out = secretValues(e.ConfigSchema.Fields, c.Config, out)
 	}
 	if ev := m.Event; ev != nil {
-		out = append(out, ev.Org.JWT)
+		out = appendOrgJWT(out, ev.Org.JWT)
 		out = secretValues(e.ConfigSchema.Fields, ev.Config, out)
 	}
 	return out
+}
+
+// ScrubSecrets is scrubSecrets for code built on an Extension.
+func ScrubSecrets(s string, secrets []string) string {
+	return scrubSecrets(s, secrets)
 }
 
 // scrubSecrets replaces every occurrence of a value of secrets in s with
@@ -93,10 +105,25 @@ func scrubSecrets(s string, secrets []string) string {
 	if s == "" || len(secrets) == 0 {
 		return s
 	}
-	sorted := append([]string(nil), secrets...)
+	// Each value as is and in its JSON-escaped and Go-quoted forms.
+	var sorted []string
+	for _, v := range secrets {
+		if v == "" {
+			continue
+		}
+		sorted = append(sorted, v)
+		if b, err := json.Marshal(v); err == nil {
+			if f := string(b[1 : len(b)-1]); f != v {
+				sorted = append(sorted, f)
+			}
+		}
+		if f := strconv.Quote(v); f[1:len(f)-1] != v {
+			sorted = append(sorted, f[1:len(f)-1])
+		}
+	}
 	sort.Slice(sorted, func(i, j int) bool { return len(sorted[i]) > len(sorted[j]) })
 	for _, v := range sorted {
-		if v == "" || !strings.Contains(s, v) {
+		if !strings.Contains(s, v) {
 			continue
 		}
 		if len(v) < minReplacedSecretLen {
@@ -105,4 +132,13 @@ func scrubSecrets(s string, secrets []string) string {
 		s = strings.ReplaceAll(s, v, redactedMarker)
 	}
 	return s
+}
+
+// appendOrgJWT appends an org JWT. A JWT is never a few characters: a shorter
+// value is not one (a placeholder) and would only make texts withheld.
+func appendOrgJWT(out []string, jwt string) []string {
+	if len(jwt) < minReplacedSecretLen {
+		return out
+	}
+	return append(out, jwt)
 }

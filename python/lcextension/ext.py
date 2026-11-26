@@ -116,7 +116,7 @@ def _scrubValue(value: Any, secrets: List[str]) -> Any:
         return _scrubSecrets(value, secrets)
     if isinstance(value, dict):
         return {_scrubSecrets(k, secrets) if isinstance(k, str) else k: _scrubValue(v, secrets) for k, v in value.items()}
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_scrubValue(v, secrets) for v in value]
     return value
 
@@ -207,11 +207,14 @@ class Extension(object):
                 return json.dumps(Response(error = "request body too large").toJSON()), 413
             except _BadBody as e:
                 return json.dumps(Response(error = str(e)).toJSON()), 400
-            if self._isLogRequest:
-                self.log(f"request: {self._requestForLog(data)}")
             if not isVerified:
+                if self._isLogRequest:
+                    # An unauthenticated body is not logged at all.
+                    self.log(f"request: <invalid signature, {len(data)} bytes, not logged>")
                 resp = json.dumps(Response(error = "invalid signature").toJSON())
                 return resp, 401
+            if self._isLogRequest:
+                self.log(f"request: {self._requestForLog(data)}")
             try:
                 data = json.loads(data)
             except:
@@ -286,7 +289,9 @@ class Extension(object):
             msg = json.loads(data)
             if not isinstance(msg, dict):
                 return f"<not a JSON object, {len(data)} bytes, not logged>"
-            return json.dumps(self._messageForLog(msg))
+            # A Secret value copied into a value shown as is (an opaque
+            # object, a plain parameter) is caught by scrubbing the rendering.
+            return _scrubSecrets(json.dumps(self._messageForLog(msg)), self._secretValues(msg))
         except Exception:
             return f"<unrenderable request, {len(data)} bytes, not logged>"
 
@@ -333,7 +338,8 @@ class Extension(object):
                 if not isinstance(body, dict):
                     continue
                 org = body.get('org', None)
-                if isinstance(org, dict) and isinstance(org.get('jwt', None), str):
+                # A JWT is never a few characters; a shorter value is a placeholder.
+                if isinstance(org, dict) and isinstance(org.get('jwt', None), str) and len(org['jwt']) >= _MIN_REPLACED_SECRET_LEN:
                     out.append(org['jwt'])
                 for confKey in ('config', 'conf'):
                     _collectSecrets(body.get(confKey, None), self.configSchema, out)

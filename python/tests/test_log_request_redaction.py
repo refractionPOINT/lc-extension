@@ -183,6 +183,32 @@ class LogRequestRedactionTest(unittest.TestCase):
     def test_short_secret_withholds_the_text(self):
         self.assertNotIn('123', lcextension.ext._scrubSecrets('pin 123 refused', ['123']))
 
+    def test_tuple_and_opaque_copies_are_scrubbed(self):
+        class _Tuple(_SecretExtension):
+            def init(self):
+                super().init()
+                self.requestSchema.Actions['run_it'].ParameterDefinitions.Fields['opaque'] = lcextension.SchemaElement(DataType=lcextension.SchemaDataTypes.Object)
+                self.requestHandlers = {'run_it': lambda sdk, data, conf, res: lcextension.Response(data={'items': (data['key'],)})}
+        body = json.dumps({'version': 20221218, 'request': {
+            'org': {'oid': 'oid-1', 'jwt': FAKE_ORG_JWT}, 'action': 'run_it',
+            'data': {'key': FAKE_SECRET_PARAM, 'opaque': {'copy': FAKE_SECRET_PARAM, 'other': 'visible-other'}},
+        }}).encode()
+        resp, captured = post(body, {'LOG_REQUEST': '1', 'LOG_RESPONSE': '1'}, _Tuple)
+        self.assertIn('visible-other', captured)
+        self.assertNoFake(captured)
+        # The synchronous answer is the handler's.
+        self.assertIn(FAKE_SECRET_PARAM, resp.get_data(as_text=True))
+
+    def test_unverified_body_is_not_logged(self):
+        body = json.dumps({'version': 20221218, 'request': {'action': 'run_it', 'data': {'name': 'unauthenticated-name'}}}).encode()
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {'LOG_REQUEST': '1'}), mock.patch('limacharlie.Manager'):
+            client = _SecretExtension('log-redaction-test', SECRET).getApp().test_client()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                resp = client.post('/', data=body, headers={'lc-ext-sig': 'not-the-signature'})
+        self.assertEqual(resp.status_code, 401)
+        self.assertNotIn('unauthenticated-name', out.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main()
