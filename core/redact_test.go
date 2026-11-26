@@ -19,6 +19,8 @@ import (
 const (
 	fakeSecretParam = "FAKE-SECRET-PARAM-VALUE-0001"
 	fakeOrgJWT      = "FAKE-ORG-JWT-VALUE-0002"
+	echoAction      = "echo"
+	testOID         = "oid-test"
 )
 
 // A request callback that echoes a Secret parameter in its error, or panics
@@ -40,14 +42,14 @@ func TestCallbackErrorAndPanicCarryNoSecret(t *testing.T) {
 			var reports []string
 			ext.Callbacks.ErrorHandler = func(r *common.ErrorReportMessage) { reports = append(reports, r.Error) }
 			ext.isLogAllErrors = true
-			ext.RequestSchema = common.RequestSchemas{"echo": {ParameterDefinitions: common.SchemaObject{Fields: map[string]common.SchemaElement{
+			ext.RequestSchema = common.RequestSchemas{echoAction: {ParameterDefinitions: common.SchemaObject{Fields: map[string]common.SchemaElement{
 				"key": {DataType: common.SchemaDataTypes.Secret},
 			}}}}
-			ext.Callbacks.RequestHandlers = map[common.ActionName]RequestCallback{"echo": {Callback: cb}}
+			ext.Callbacks.RequestHandlers = map[common.ActionName]RequestCallback{echoAction: {Callback: cb}}
 
 			body, _ := json.Marshal(&common.Message{Version: PROTOCOL_VERSION, Request: &common.RequestMessage{
-				Org:    common.OrgAccessData{OID: "oid-test", JWT: fakeOrgJWT},
-				Action: "echo",
+				Org:    common.OrgAccessData{OID: testOID, JWT: fakeOrgJWT},
+				Action: echoAction,
 				Data:   limacharlie.Dict{"key": fakeSecretParam},
 			}})
 			mac := hmac.New(sha256.New, []byte(testSecret))
