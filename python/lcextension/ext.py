@@ -9,6 +9,7 @@ import sys
 import threading
 import os
 import inspect
+import copy
 from typing import Dict, List, Optional, Any, Union, Callable
 from .messages import *
 from .schema import *
@@ -38,6 +39,33 @@ DEFAULT_MAX_BODY_BYTES = 16 << 20
 # not compressed). A gzip stream can expand by orders of magnitude, so this is what
 # bounds the memory one request can make the extension allocate.
 DEFAULT_MAX_DECODED_BODY_BYTES = 64 << 20
+
+# Printed in place of a value that may be a secret. Fixed: never a prefix, a
+# length or a hash of the value.
+REDACTED_MARKER = '[REDACTED]'
+
+def _redactBySchema(values: Any, schema: Optional[SchemaObject]) -> Any:
+    '''Return a copy of values (a dict of parameters or config fields) for a log:
+    a field the schema declares Secret-typed, or does not declare, has its value
+    replaced by REDACTED_MARKER; an object field is redacted by its own schema.
+    Without a schema, every value is replaced.'''
+    if not isinstance(values, dict):
+        return None if values is None else REDACTED_MARKER
+    out = {}
+    for k, v in values.items():
+        element = None if schema is None else schema.Fields.get(k, None)
+        if v is None:
+            out[k] = None
+        elif element is None or element.DataType == SchemaDataTypes.Secret:
+            out[k] = REDACTED_MARKER
+        elif element.ObjectSchema is not None:
+            if element.IsList and isinstance(v, list):
+                out[k] = [_redactBySchema(i, element.ObjectSchema) for i in v]
+            else:
+                out[k] = _redactBySchema(v, element.ObjectSchema)
+        else:
+            out[k] = v
+    return out
 
 class _BodyTooLarge(Exception):
     pass
@@ -127,7 +155,7 @@ class Extension(object):
             except _BadBody as e:
                 return json.dumps(Response(error = str(e)).toJSON()), 400
             if self._isLogRequest:
-                self.log(f"request: {data}")
+                self.log(f"request: {self._requestForLog(data)}")
             if not isVerified:
                 resp = json.dumps(Response(error = "invalid signature").toJSON())
                 return resp, 401
@@ -185,6 +213,35 @@ class Extension(object):
         if not hmac.compare_digest(mac.hexdigest(), signature):
             return b"", False
         return b"".join(_gunzipChunks(raw, self._maxDecodedBodyBytes)), True
+
+    def _requestForLog(self, data: Union[str, bytes]) -> str:
+        '''Render a request body for the LOG_REQUEST debug log with every value
+        that can be a secret replaced by REDACTED_MARKER: the org JWT, and any
+        request parameter or config field the extension's schema declares
+        Secret-typed or does not declare at all. A body that is not a JSON
+        object is not logged, only its size.'''
+        try:
+            msg = json.loads(data)
+        except Exception:
+            msg = None
+        if not isinstance(msg, dict):
+            return f"<not a JSON object, {len(data)} bytes, not logged>"
+        msg = copy.deepcopy(msg)
+        for section in ('request', 'event', 'conf_validation'):
+            body = msg.get(section, None)
+            if not isinstance(body, dict):
+                continue
+            org = body.get('org', None)
+            if isinstance(org, dict) and org.get('jwt', None) is not None:
+                org['jwt'] = REDACTED_MARKER
+            for confKey in ('config', 'conf'):
+                if confKey in body:
+                    body[confKey] = _redactBySchema(body[confKey], self.configSchema)
+        request = msg.get('request', None)
+        if isinstance(request, dict) and 'data' in request:
+            action = self.requestSchema.Actions.get(request.get('action', None), None)
+            request['data'] = _redactBySchema(request['data'], None if action is None else action.ParameterDefinitions)
+        return json.dumps(msg)
 
     def _verifyOrigin(self, data: Union[str, bytes], signature: Union[str, bytes]) -> bool:
         if self._secret is None:
