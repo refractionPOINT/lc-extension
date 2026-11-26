@@ -153,6 +153,36 @@ class LogRequestRedactionTest(unittest.TestCase):
                 self.assertNoFake(resp.get_data(as_text=True))
                 self.assertIn(lcextension.ext.REDACTED_MARKER, resp.get_data(as_text=True))
 
+    def test_returned_error_escaped_and_mutated_values_are_scrubbed(self):
+        quoted = 'FAKE"QUOTED\\SECRET-0006'
+        class _Echo(_SecretExtension):
+            def init(self):
+                super().init()
+                def run_it(sdk, data, conf, res):
+                    key = data.pop('key')
+                    nested = json.loads(data['nested'])['token']
+                    if data.get('raise'):
+                        raise RuntimeError(json.dumps({'k': key, 'n': nested}))
+                    return lcextension.Response(error=f'refused {key} {nested}', data={'echo': key})
+                self.requestHandlers = {'run_it': run_it}
+        for raise_it in (False, True):
+            data = {'key': quoted, 'nested': json.dumps({'token': FAKE_NESTED_SECRET})}
+            if raise_it:
+                data['raise'] = True
+            body = json.dumps({'version': 20221218, 'request': {
+                'org': {'oid': 'oid-1', 'jwt': FAKE_ORG_JWT}, 'action': 'run_it', 'data': data,
+            }}).encode()
+            resp, captured = post(body, {'LOG_RESPONSE': '1'}, _Echo)
+            answer = json.loads(resp.get_data(as_text=True))
+            for text in (captured, answer.get('error', '')):
+                self.assertNotIn(FAKE_NESTED_SECRET, text)
+                self.assertNotIn(quoted, text)
+                self.assertNotIn(json.dumps(quoted)[1:-1], text)
+            self.assertIn(lcextension.ext.REDACTED_MARKER, answer['error'])
+
+    def test_short_secret_withholds_the_text(self):
+        self.assertNotIn('123', lcextension.ext._scrubSecrets('pin 123 refused', ['123']))
+
 
 if __name__ == '__main__':
     unittest.main()

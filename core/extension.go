@@ -172,6 +172,21 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The Secret-typed values the message carries (by the schemas), taken
+	// before any callback runs: a callback's error is scrubbed of them before
+	// it is reported or answered.
+	hidden := e.messageSecretValues(&message)
+	// A callback's panic value can carry them too: it is reported with a fixed
+	// text instead of reaching the HTTP server's log.
+	defer func() {
+		if r := recover(); r != nil {
+			if e.Callbacks.ErrorHandler != nil {
+				e.Callbacks.ErrorHandler(&common.ErrorReportMessage{Error: "panic handling a message (details not logged)"})
+			}
+			_ = respond(w, http.StatusInternalServerError, &common.Response{Version: PROTOCOL_VERSION, Error: "internal error in the extension"})
+		}
+	}()
+
 	// A message that carries a fleet section is never taken for a heartbeat:
 	// handleFleetRequest refuses it whole when it carries anything else.
 	if message.HeartBeat != nil && message.FleetRequest == nil {
@@ -182,6 +197,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if message.FleetRequest != nil {
 		// Reached only after the signature above, like every other message.
 		fleetResponse, status := e.handleFleetRequest(ctx, &message)
+		fleetResponse.Error = scrubSecrets(fleetResponse.Error, hidden)
 		if status != 0 {
 			_ = e.respondAndLog(w, status, &fleetResponse)
 			return
@@ -285,6 +301,7 @@ func (e *Extension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	response.Error = scrubSecrets(response.Error, hidden)
 	if response.Error != "" {
 		// TODO: In the future we should support more detailed error handling and error types such as
 		// validation error, etc. and return appropriate status code (e.g. 400 for validation error, etc.)

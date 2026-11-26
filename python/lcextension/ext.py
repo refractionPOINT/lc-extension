@@ -66,9 +66,10 @@ def _redactBySchema(values: Any, schema: Optional[SchemaObject]) -> Any:
             out[k] = v
     return out
 
-# The shortest value _scrubSecrets replaces: a shorter one cannot be a
-# credential, and replacing it would mangle unrelated text.
-_MIN_SCRUBBED_SECRET_LEN = 4
+# The shortest Secret value _scrubSecrets replaces in place: a shorter one (a
+# PIN) would mangle unrelated text, so a text containing it is withheld whole.
+_MIN_REPLACED_SECRET_LEN = 4
+_WITHHELD_TEXT = 'details withheld: they may contain a Secret parameter'
 
 def _collectSecrets(values: Any, schema: Optional[SchemaObject], out: List[str]) -> None:
     '''Append to out the values of values (a dict) that the schema declares
@@ -81,18 +82,43 @@ def _collectSecrets(values: Any, schema: Optional[SchemaObject], out: List[str])
             continue
         for item in (v if isinstance(v, list) else [v]):
             if element.DataType == SchemaDataTypes.Secret:
-                if isinstance(item, str) and len(item) >= _MIN_SCRUBBED_SECRET_LEN:
+                if isinstance(item, str) and item:
                     out.append(item)
             elif element.ObjectSchema is not None:
+                if isinstance(item, str) and item.lstrip().startswith('{'):
+                    # An object sent as a JSON-object string, as the platform accepts.
+                    try:
+                        item = json.loads(item)
+                    except ValueError:
+                        continue
                 _collectSecrets(item, element.ObjectSchema, out)
 
 def _scrubSecrets(text: str, secrets: List[str]) -> str:
-    '''text with every occurrence of a value of secrets replaced by
-    REDACTED_MARKER, longest value first.'''
-    for v in sorted(set(secrets), key=len, reverse=True):
-        if len(v) >= _MIN_SCRUBBED_SECRET_LEN:
-            text = text.replace(v, REDACTED_MARKER)
+    '''text with every occurrence of a value of secrets, as is or in its
+    JSON-escaped or repr form, replaced by REDACTED_MARKER, longest first. A
+    text containing a value too short to replace is withheld whole.'''
+    forms = set()
+    for v in secrets:
+        if v:
+            forms.update(f for f in (v, json.dumps(v)[1:-1], repr(v)[1:-1]) if f)
+    for f in sorted(forms, key=len, reverse=True):
+        if f not in text:
+            continue
+        if len(f) < _MIN_REPLACED_SECRET_LEN:
+            return _WITHHELD_TEXT
+        text = text.replace(f, REDACTED_MARKER)
     return text
+
+def _scrubValue(value: Any, secrets: List[str]) -> Any:
+    '''A copy of value (decoded JSON) with _scrubSecrets applied to every
+    string, keys included.'''
+    if isinstance(value, str):
+        return _scrubSecrets(value, secrets)
+    if isinstance(value, dict):
+        return {_scrubSecrets(k, secrets) if isinstance(k, str) else k: _scrubValue(v, secrets) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_scrubValue(v, secrets) for v in value]
+    return value
 
 class _BodyTooLarge(Exception):
     pass
@@ -191,21 +217,26 @@ class Extension(object):
             except:
                 pass
             else:
+                # Taken before the handler runs (it may change the request).
+                secrets = self._secretValues(data)
                 try:
                     resp = self._extRequestHandler(data)
                 except Exception as e:
                     # An exception's text can carry the request's secrets (a
                     # handler or an SDK echoing its credential).
-                    text = _scrubSecrets(str(e), self._secretValues(data))
+                    text = _scrubSecrets(str(e), secrets)
                     resp = Response(error = text)
                     self.logCritical(f"exception: {text}")
+                # Nor does an error the handler answers with carry them.
+                if isinstance(resp.error, str):
+                    resp.error = _scrubSecrets(resp.error, secrets)
                 status = 200
                 if resp.error:
                     status = 500 if resp.is_retriable else 400
-                resp = json.dumps(resp.toJSON())
+                body = resp.toJSON()
                 if self._isLogResponse:
-                    self.log(f"response: {_scrubSecrets(resp, self._secretValues(data))}")
-                return resp, status
+                    self.log(f"response: {json.dumps(_scrubValue(body, secrets))}")
+                return json.dumps(body), status
             resp = json.dumps(Response(error = "invalid request").toJSON())
             if self._isLogResponse:
                 self.log(f"response: {resp}")
