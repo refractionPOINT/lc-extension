@@ -675,7 +675,9 @@ func forwardHTTP(ctx context.Context, secret []byte, client *http.Client, servic
 
 	response := &common.Response{}
 	if err := json.Unmarshal(bodyBytes, response); err != nil {
-		return nil, fmt.Errorf("json.Unmarshal: %v (received: %s)", err, string(bodyBytes))
+		// The body is not part of the error: it can echo the request, Secret
+		// parameters included, and this error is logged and passed on.
+		return nil, fmt.Errorf("json.Unmarshal: %v (HTTP %d, %d-byte body not shown)", err, resp.StatusCode, len(bodyBytes))
 	}
 
 	return response, nil

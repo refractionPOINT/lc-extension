@@ -9,7 +9,6 @@ import sys
 import threading
 import os
 import inspect
-import copy
 from typing import Dict, List, Optional, Any, Union, Callable
 from .messages import *
 from .schema import *
@@ -66,6 +65,34 @@ def _redactBySchema(values: Any, schema: Optional[SchemaObject]) -> Any:
         else:
             out[k] = v
     return out
+
+# The shortest value _scrubSecrets replaces: a shorter one cannot be a
+# credential, and replacing it would mangle unrelated text.
+_MIN_SCRUBBED_SECRET_LEN = 4
+
+def _collectSecrets(values: Any, schema: Optional[SchemaObject], out: List[str]) -> None:
+    '''Append to out the values of values (a dict) that the schema declares
+    Secret-typed, in lists and object fields too.'''
+    if not isinstance(values, dict) or schema is None:
+        return
+    for k, v in values.items():
+        element = schema.Fields.get(k, None)
+        if element is None or v is None:
+            continue
+        for item in (v if isinstance(v, list) else [v]):
+            if element.DataType == SchemaDataTypes.Secret:
+                if isinstance(item, str) and len(item) >= _MIN_SCRUBBED_SECRET_LEN:
+                    out.append(item)
+            elif element.ObjectSchema is not None:
+                _collectSecrets(item, element.ObjectSchema, out)
+
+def _scrubSecrets(text: str, secrets: List[str]) -> str:
+    '''text with every occurrence of a value of secrets replaced by
+    REDACTED_MARKER, longest value first.'''
+    for v in sorted(set(secrets), key=len, reverse=True):
+        if len(v) >= _MIN_SCRUBBED_SECRET_LEN:
+            text = text.replace(v, REDACTED_MARKER)
+    return text
 
 class _BodyTooLarge(Exception):
     pass
@@ -167,14 +194,17 @@ class Extension(object):
                 try:
                     resp = self._extRequestHandler(data)
                 except Exception as e:
-                    resp = Response(error = str(e))
-                    self.logCritical(f"exception: {str(e)}")
+                    # An exception's text can carry the request's secrets (a
+                    # handler or an SDK echoing its credential).
+                    text = _scrubSecrets(str(e), self._secretValues(data))
+                    resp = Response(error = text)
+                    self.logCritical(f"exception: {text}")
                 status = 200
                 if resp.error:
                     status = 500 if resp.is_retriable else 400
                 resp = json.dumps(resp.toJSON())
                 if self._isLogResponse:
-                    self.log(f"response: {resp}")
+                    self.log(f"response: {_scrubSecrets(resp, self._secretValues(data))}")
                 return resp, status
             resp = json.dumps(Response(error = "invalid request").toJSON())
             if self._isLogResponse:
@@ -215,33 +245,72 @@ class Extension(object):
         return b"".join(_gunzipChunks(raw, self._maxDecodedBodyBytes)), True
 
     def _requestForLog(self, data: Union[str, bytes]) -> str:
-        '''Render a request body for the LOG_REQUEST debug log with every value
-        that can be a secret replaced by REDACTED_MARKER: the org JWT, and any
-        request parameter or config field the extension's schema declares
-        Secret-typed or does not declare at all. A body that is not a JSON
-        object is not logged, only its size.'''
+        '''Render a request body for the LOG_REQUEST debug log. Only metadata
+        (protocol version, idempotency key, section names, oid, ident, action,
+        event name) and the values the extension's schema declares non-Secret
+        (request parameters, config fields) are shown; every other value, the
+        org JWT included, is REDACTED_MARKER. A body that is not a JSON object
+        is not logged, only its size.'''
         try:
             msg = json.loads(data)
+            if not isinstance(msg, dict):
+                return f"<not a JSON object, {len(data)} bytes, not logged>"
+            return json.dumps(self._messageForLog(msg))
         except Exception:
-            msg = None
-        if not isinstance(msg, dict):
-            return f"<not a JSON object, {len(data)} bytes, not logged>"
-        msg = copy.deepcopy(msg)
-        for section in ('request', 'event', 'conf_validation'):
-            body = msg.get(section, None)
-            if not isinstance(body, dict):
+            return f"<unrenderable request, {len(data)} bytes, not logged>"
+
+    def _messageForLog(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for section, body in msg.items():
+            if section in ('version', 'idempotency_key'):
+                out[section] = body if isinstance(body, (str, int)) else REDACTED_MARKER
                 continue
-            org = body.get('org', None)
-            if isinstance(org, dict) and org.get('jwt', None) is not None:
-                org['jwt'] = REDACTED_MARKER
-            for confKey in ('config', 'conf'):
-                if confKey in body:
-                    body[confKey] = _redactBySchema(body[confKey], self.configSchema)
-        request = msg.get('request', None)
-        if isinstance(request, dict) and 'data' in request:
-            action = self.requestSchema.Actions.get(request.get('action', None), None)
-            request['data'] = _redactBySchema(request['data'], None if action is None else action.ParameterDefinitions)
-        return json.dumps(msg)
+            if not isinstance(body, dict):
+                out[section] = None if body is None else REDACTED_MARKER
+                continue
+            shown: Dict[str, Any] = {}
+            for k, v in body.items():
+                if k == 'org' and isinstance(v, dict):
+                    shown[k] = {ok: (ov if ok in ('oid', 'ident') and isinstance(ov, str) else (None if ov is None else REDACTED_MARKER)) for ok, ov in v.items()}
+                elif k in ('action', 'event_name', 'inv_id') and isinstance(v, str):
+                    shown[k] = v
+                elif k in ('config', 'conf'):
+                    shown[k] = _redactBySchema(v, self.configSchema)
+                elif k == 'data' and section == 'request':
+                    shown[k] = _redactBySchema(v, self._parameterSchema(body.get('action', None)))
+                else:
+                    shown[k] = None if v is None else REDACTED_MARKER
+            out[section] = shown
+        return out
+
+    def _parameterSchema(self, action: Any) -> Optional[SchemaObject]:
+        if not isinstance(action, str):
+            return None
+        schema = self.requestSchema.Actions.get(action, None)
+        return None if schema is None else schema.ParameterDefinitions
+
+    def _secretValues(self, msg: Any) -> List[str]:
+        '''Every Secret-typed value a request message carries: its org JWT, its
+        request parameters (by the action's schema) and its config (by the
+        config schema).'''
+        out: List[str] = []
+        try:
+            if not isinstance(msg, dict):
+                return out
+            for section in ('request', 'event', 'conf_validation'):
+                body = msg.get(section, None)
+                if not isinstance(body, dict):
+                    continue
+                org = body.get('org', None)
+                if isinstance(org, dict) and isinstance(org.get('jwt', None), str):
+                    out.append(org['jwt'])
+                for confKey in ('config', 'conf'):
+                    _collectSecrets(body.get(confKey, None), self.configSchema, out)
+                if section == 'request':
+                    _collectSecrets(body.get('data', None), self._parameterSchema(body.get('action', None)), out)
+        except Exception:
+            pass
+        return out
 
     def _verifyOrigin(self, data: Union[str, bytes], signature: Union[str, bytes]) -> bool:
         if self._secret is None:

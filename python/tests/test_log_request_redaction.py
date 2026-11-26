@@ -46,15 +46,19 @@ def sign(body: bytes) -> str:
     return hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
 
 
-def post_logged(body: bytes) -> str:
-    '''POST body to an extension with LOG_REQUEST set and return everything it
-    wrote to stdout and stderr.'''
+def post(body: bytes, env=None, ext=_SecretExtension):
+    '''POST body to an extension with the env set; return the response and
+    everything the extension wrote to stdout and stderr.'''
     out = io.StringIO()
-    with mock.patch.dict(os.environ, {'LOG_REQUEST': '1'}), mock.patch('limacharlie.Manager'):
-        client = _SecretExtension('log-redaction-test', SECRET).getApp().test_client()
+    with mock.patch.dict(os.environ, env or {}), mock.patch('limacharlie.Manager'):
+        client = ext('log-redaction-test', SECRET).getApp().test_client()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-            client.post('/', data=body, headers={'lc-ext-sig': sign(body)})
-    return out.getvalue()
+            resp = client.post('/', data=body, headers={'lc-ext-sig': sign(body)})
+    return resp, out.getvalue()
+
+
+def post_logged(body: bytes) -> str:
+    return post(body, {'LOG_REQUEST': '1'})[1]
 
 
 class LogRequestRedactionTest(unittest.TestCase):
@@ -104,6 +108,50 @@ class LogRequestRedactionTest(unittest.TestCase):
         captured = post_logged(body)
         self.assertIn('request:', captured)
         self.assertNoFake(captured)
+
+    def test_schema_free_sections_are_redacted(self):
+        body = json.dumps({'version': 20221218, 'idempotency_key': 'idem-1',
+            'fleet_request': {'action': 'run_it', 'oids': ['oid-1'], 'data': {'key': FAKE_SECRET_PARAM}},
+            'event': {'org': {'oid': 'oid-1', 'jwt': FAKE_ORG_JWT}, 'event_name': 'subscribe', 'data': {'x': FAKE_UNKNOWN_PARAM}},
+            'request': {'org': {'oid': 'oid-1', 'jwt': FAKE_ORG_JWT}, 'action': 'run_it', 'data': {'name': 'visible-name'},
+                        'resource_state': {'s': FAKE_NESTED_SECRET}, 'acl': {'scopes': [FAKE_CONFIG_SECRET]}},
+        }).encode()
+        captured = post_logged(body)
+        self.assertNoFake(captured)
+        for visible in ('idem-1', 'subscribe', 'run_it', 'oid-1', 'visible-name'):
+            self.assertIn(visible, captured)
+
+    def test_malformed_action_answers_the_same_with_logging(self):
+        body = json.dumps({'version': 20221218, 'request': {
+            'org': {'oid': 'oid-1', 'jwt': FAKE_ORG_JWT}, 'action': ['not', 'a', 'string'], 'data': {'key': FAKE_SECRET_PARAM},
+        }}).encode()
+        plain, _ = post(body)
+        logged, captured = post(body, {'LOG_REQUEST': '1'})
+        self.assertEqual(plain.status_code, logged.status_code)
+        self.assertNotEqual(logged.status_code, 500)
+        self.assertNoFake(captured)
+
+    def test_handler_exception_and_response_log_are_scrubbed(self):
+        class _Raising(_SecretExtension):
+            def init(self):
+                super().init()
+                def run_it(sdk, data, conf, res):
+                    if data.get('raise'):
+                        raise RuntimeError(f"auth failed with {data['key']} and {conf['api_key']}")
+                    return lcextension.Response(data={'echo': data['key']})
+                self.requestHandlers = {'run_it': run_it}
+        for raise_it in (True, False):
+            body = json.dumps({'version': 20221218, 'request': {
+                'org': {'oid': 'oid-1', 'jwt': FAKE_ORG_JWT}, 'action': 'run_it',
+                'data': {'key': FAKE_SECRET_PARAM, 'raise': raise_it} if raise_it else {'key': FAKE_SECRET_PARAM},
+                'config': {'api_key': FAKE_CONFIG_SECRET},
+            }}).encode()
+            resp, captured = post(body, {'LOG_RESPONSE': '1'}, _Raising)
+            self.assertIn('response:', captured)
+            self.assertNoFake(captured)
+            if raise_it:
+                self.assertNoFake(resp.get_data(as_text=True))
+                self.assertIn(lcextension.ext.REDACTED_MARKER, resp.get_data(as_text=True))
 
 
 if __name__ == '__main__':
